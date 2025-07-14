@@ -39,7 +39,9 @@ db = None
 try:
     firebase_config = None
     try:
-        firebase_config = st.secrets["firebase"]
+        firebase_config = dict(st.secrets["firebase"])
+        # Fix the private_key field by replacing \\n with \n
+        firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
         print("📦 Firebase config loaded from Streamlit secrets")
     except Exception:
         if os.path.exists("firebase_key.json"):
