@@ -3,6 +3,15 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import json
+import sqlite3
+import csv
+import uuid
+import datetime
+import firebase_admin
+from firebase_admin import credentials, firestore
+import uuid
+
+
 
 # Load environment variables from .env (only works locally)
 load_dotenv()
@@ -12,6 +21,70 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
+
+db = None  # initialize as fallback
+
+try:
+    if "firebase" in st.secrets:
+        # Streamlit Cloud
+        if "firebase_app" not in st.session_state:
+            cred = credentials.Certificate(st.secrets["firebase"])
+            firebase_admin.initialize_app(cred)
+            st.session_state.firebase_app = True
+        db = firestore.client()
+
+    elif os.path.exists("firebase_key.json"):
+        # Local development with key file
+        if not firebase_admin._apps:
+            cred = credentials.Certificate("firebase_key.json")
+            firebase_admin.initialize_app(cred)
+        db = firestore.client()
+except Exception as e:
+    st.warning(f"⚠️ Firebase initialization failed: {e}")
+
+
+def log_to_firestore(user_input, input_type, message, explanation):
+    doc_id = str(uuid.uuid4())
+    timestamp = datetime.datetime.utcnow().isoformat()
+
+    data = {
+        "timestamp": timestamp,
+        "user_input": user_input,
+        "input_type": input_type,
+        "llm_message": message,
+        "llm_explanation": explanation,
+    }
+
+    db.collection("session_logs").document(doc_id).set(data)
+
+# Set up local SQLite database
+conn = sqlite3.connect('session_logs.db', check_same_thread=False)
+c = conn.cursor()
+c.execute('''
+    CREATE TABLE IF NOT EXISTS logs (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT,
+        user_input TEXT,
+        input_type TEXT,
+        llm_message TEXT,
+        llm_explanation TEXT
+    )
+''')
+conn.commit()
+
+def log_session(user_input, input_type, message, explanation):
+    entry_id = str(uuid.uuid4())
+    timestamp = str(datetime.datetime.utcnow())
+
+    # Log to SQLite
+    c.execute('INSERT INTO logs VALUES (?, ?, ?, ?, ?, ?)', 
+              (entry_id, timestamp, user_input, input_type, message, explanation))
+    conn.commit()
+
+    # Also log to CSV
+    with open('session_logs.csv', 'a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow([timestamp, entry_id, user_input, input_type, message, explanation])
 
 st.title("Behavioral Science Based Advocate Assistant")
 st.write("""This tool helps improve social media comments for better persuasiveness using behavioral science.""")
@@ -111,6 +184,23 @@ Always return only valid JSON. Do not include any extra explanation or formattin
 
                     st.markdown(f"**Reply:** {parsed['message']}")
                     st.markdown(f"**Explanation:** {parsed['explanation']}")
+                    # Log the session
+                    log_session(
+                        user_input=user_input,
+                        input_type=parsed.get("input_type", "unknown"),
+                        message=parsed["message"],
+                        explanation=parsed["explanation"]
+                    )
+                    if db:
+                        try:
+                            log_to_firestore(
+                                user_input=user_input,
+                                input_type=parsed.get("input_type", "unknown"),
+                                message=parsed["message"],
+                                explanation=parsed["explanation"]
+                            )
+                        except Exception as e:
+                            st.warning(f"⚠️ Could not log to Firebase: {e}")
                     st.caption(f"🔍 Detected input type: {st.session_state.input_type}")
             except json.JSONDecodeError:
                 st.error("The AI response was not valid JSON. Try rephrasing your input.")

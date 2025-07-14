@@ -3,3 +3,4 @@ openai
 gspread
 oauth2client
 python-dotenv
+firebase-admin
