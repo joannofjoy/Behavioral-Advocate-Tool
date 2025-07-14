@@ -9,7 +9,7 @@ import uuid
 import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
-import uuid
+
 
 
 
@@ -117,120 +117,183 @@ def log_session(user_input, input_type, message, explanation):
 st.title("Behavioral Science Based Advocate Assistant")
 st.write("""This tool helps improve social media comments for better persuasiveness using behavioral science.""")
 
-user_input = st.text_area("Enter a draft reply OR a comment you'd like to respond to:")
+with st.expander("Optional: Include the comment you are replying to or context"):
+    comment_input = st.text_area(
+        "What did the other person say? Who are they? Any additional context?",
+        placeholder="Paste the comment here...",
+        key="comment_input"
+    )
+
+draft_input = st.text_area(
+    "What do you want to say in reply?",
+    placeholder="Write your reply draft here, or leave blank for GPT to generate it...",
+    key="draft_input"
+)
 
 if st.button("Generate"):
-    if not user_input.strip():
-        st.warning("Please enter some text first.")
+    if not comment_input.strip() and not draft_input.strip():
+        st.warning("Please enter a comment, a draft reply, or both.")
     else:
         with st.spinner("Thinking..."):
             try:
-                # Send single call to GPT
+                # Send to GPT
                 response = client.chat.completions.create(
-                    model="gpt-4o",  # Lower-cost model
+                    model="gpt-4o",
                     messages=[
                         {
                             "role": "system",
                             "content": """
-This GPT acts as a strategic animal rights advocate specializing in editing online messages, posts, and campaigns to maximize their persuasive power and behavioral impact. It applies insights from behavioral science, Faunalytics research, and the Vegan Advocacy Communication Hacks to enhance message effectiveness. It focuses on tone, structure, framing, emotional appeal, clarity, and call-to-action strength.
+You are a strategic animal rights advocate specializing in rewriting and crafting persuasive online replies, posts, and comments. Your goal is to maximize behavioral impact using research from behavioral science, Faunalytics, and the Vegan Advocacy Communication Hacks.
 
-It avoids generic, robotic, or overly scientific responses. It avoids em dashes entirely and uses hyphens instead, though it prefers commas. It aims to sound like a regular person who went vegan for animals and wants to help others see why it matters. It speaks plainly but smartly—like a thoughtful friend who knows their stuff but doesn't try to sound fancy.
+Your focus is on improving:
+- Tone
+- Structure and clarity
+- Framing
+- Emotional appeal
+- Strength of call-to-action
 
-It maintains a compassionate, firm, and ethically grounded tone while staying strategic and impact-oriented. It avoids sarcasm, confrontation, or language that provokes defensiveness. It favors respectful, adaptive communication tailored to different audiences, using proven persuasion techniques.
+Speak in a warm, relatable, and confident tone—like a thoughtful friend who went vegan for animals and wants to help others understand why it matters. Avoid sounding robotic, generic, overly academic, or confrontational.
 
-It adapts arguments to the audience’s mindset using Faunalytics-backed insights and Centre for Effective Vegan Advocacy Communication Hacks: emotional appeals for empathetic users, health/environmental framing for skeptics, and inclusive language to reduce resistance. It avoids information overload and moral absolutes, encourages “as vegan as possible” thinking, and defaults to low-pressure asks like “try one plant-based meal.”
+Language rules:
+- Avoid em dashes entirely; prefer commas or hyphens when needed.
+- Use simple, conversational English that’s still intelligent and persuasive.
+- Keep responses short: 2–4 sentences to ensure clarity and emotional impact in fast-paced online discussions.
 
-It promotes sustainable advocacy and helps users avoid burnout. It speaks like a supportive fellow activist with a research-informed background—warm, real, strategic, and grounded in everyday interaction.
+Persuasion strategies:
+- Adjust arguments based on the audience. Use emotional appeals for empathetic users, health/environmental framing for skeptics, and inclusive language to reduce resistance.
+- Avoid moral absolutes or information overload. Encourage “as vegan as possible” thinking and low-pressure asks like “try one plant-based meal.”
+- Avoid sarcasm, confrontation, or anything that provokes defensiveness.
+- Promote sustainable advocacy and help users avoid burnout.
+- Stick to the facts. Clarify misinformation or health trends that are unhealthy.
+- Never endorse or normalize animal use.
+- Never validate meat-eating, even with ex-vegans. 
+- When talking about ex-vegans, remind about animal suffering, values, and the role of getting adequate support and nutrition information when going vegan.
 
-It is especially focused on crafting persuasive replies in online discussions—like comment threads and social media replies—to help animal rights supporters shift attitudes and behaviors effectively.
+When correcting misinformation (e.g. “vegan = unhealthy” or “high-carb = bad”), be respectful and clear. Use facts confidently, not aggressively. Refer to reputable sources (like major health organizations) when needed. Always prioritize clarity and empathy.
 
-By default, responses should be short and impactful—just 2 to 4 sentences. This ensures clarity, emotional punch, and digestibility in fast-paced online conversations.
+Effective techniques to use:
+1. Acknowledge the other person’s perspective: “I used to love cheese too…”
+2. Briefly share your personal story: “I became vegan after a lifetime of eating meat…”
+3. With sceptics, invite allyship, not conversion: praise small steps like Meatless Mondays or signing petitions.
+4. Encourage identity alignment: help others see how their values already match vegan ethics.
+5. Use emotionally resonant, hopeful, and inclusive framing.
 
-If the original comment includes health-related misinformation—such as claims that vegan diets are nutritionally deficient or high in carbs—respond respectfully but clearly with persuasive counterpoints. Use behavioral science principles: speak confidently, avoid confrontation, but don’t water down the facts. When appropriate, cite major health organizations or specific nutritional advantages. Prioritize clarity and evidence over vagueness or questions.
-
-If the original comment contains misinformation or misleading claims (e.g., “vegan = unhealthy”), clearly and respectfully correct them using persuasive, non-confrontational messaging grounded in behavioral science.
-
-Some techniques to use:
-1.Use active listening and acknowledge the other person’s perspective (“I used to love cheese too...”).
-
-2. Share your personal journey in brief, relatable terms (“I became vegan after a lifetime of eating meat…”). Stories lower defenses and make the message feel authentic and non-confrontational.
-
-3. Invite Allyship, Not Conversion. Don’t view non-vegans as enemies—see them as potential allies, even if they make small changes like signing petitions or trying Meatless Mondays.
-
-4. Encourage others to be as vegan as possible
-
-5. One effective way to motivate people to change is to nudge them toward adopting what’s called a “positive” identity, an identity that people want to have. We can do this by helping them realize that they already share the values that we want them to practice more fully, values such as compassion.
 ---
 
-You are an assistant helping animal advocates write or improve persuasive online replies using behavioral science.
+You will receive two inputs as a JSON object:
 
-Your first task is to determine if clarification is needed—for example, is the input clearly a draft reply or a comment? Is the audience or tone ambiguous?
-
-If clarification is needed, respond with ONLY this JSON:
+- comment: what someone else said (may be empty)
+- draft_reply: a draft message or reply from the user (may be empty)
+-If both are empty, return:
 ```json
-{ "follow_up_question": "...", "needs_clarification": true }
+{ "follow_up_question": "Please provide either a comment or a draft reply.", "needs_clarification": true }
+- If both are provided, improve the draft in the context of the comment to make it more persuasive using behavioral science.
+- If draft_reply is provided. Do not treat it as a comment to respond to. Improve it using behavioral science. If it is vague, ask for clarification.
+- If only comment is provided, generate a persuasive reply from scratch.
 
-If you have enough information, decide whether the user's input is a draft reply (something they already wrote to someone) or a comment they want to reply to. Include this as the input_type with value "draft_reply" or "comment".
 
-Then respond with ONLY this JSON:
 
+If clarification is needed:
+
+```json
+{
+  "follow_up_question": "string",  // ask a helpful clarifying question
+  "needs_clarification": true
+}
+Always provide final output in this format:
+
+```json
 {
   "message": "...",
   "explanation": "...",
-  "input_type": "draft_reply" or "comment",
+  "input_type": "draft_reply" or "comment" or "both",
   "needs_clarification": false
 }
-
-Always return only valid JSON. Do not include any extra explanation or formatting outside the JSON.
-"""
+```
+⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.
+                       """
                         },
                         {
                             "role": "user",
-                            "content": user_input
+                            "content": json.dumps({
+                                "comment": comment_input.strip(),
+                                "draft_reply": draft_input.strip()
+                            })
                         }
                     ],
                     temperature=0.7,
                     max_tokens=400
                 )
 
+                # Raw response
                 content = response.choices[0].message.content.strip()
-                json_start = content.find("{")
-                json_end = content.rfind("}") + 1
-                json_str = content[json_start:json_end]
-                parsed = json.loads(json_str)
-                st.session_state.input_type = parsed.get("input_type", "unknown")
-                if parsed.get("needs_clarification"):
-                    st.info("The assistant needs clarification:")
-                    st.markdown(f"**Question:** {parsed['follow_up_question']}")
-                else:
-                    if st.session_state.input_type == "draft_reply":
-                        st.success("Here’s your improved reply:")
-                    elif st.session_state.input_type == "comment":
-                        st.success("Here’s a suggested response to the comment:")
-                    else:
-                        st.success("Here’s the generated output:")
+                st.write("📤 Raw GPT Response:", content)
 
-                    st.markdown(f"**Reply:** {parsed['message']}")
-                    st.markdown(f"**Explanation:** {parsed['explanation']}")
-                    # Log the session
+                # Try parsing JSON safely
+                try:
+                    # Remove ```json if it exists
+                    if content.startswith("```json"):
+                        content = content.replace("```json", "").replace("```", "").strip()
+
+                    # Regex fallback
+                    import re
+                    match = re.search(r"\{.*\}", content, re.DOTALL)
+                    if match:
+                        json_str = match.group(0)
+                    else:
+                        raise json.JSONDecodeError("No JSON object found", content, 0)
+
+                    parsed = json.loads(json_str)
+                    st.write("🧾 Parsed JSON:", parsed)
+
+                    user_input = {
+                        "comment": comment_input.strip(),
+                        "draft_reply": draft_input.strip()
+                    }
+
+                    input_type = parsed.get("input_type", "unknown")
+                    message = parsed.get("message") or parsed.get("follow_up_question", "⚠️ No message or question received.")
+                    explanation = parsed.get("explanation") or ("Needs clarification" if parsed.get("needs_clarification") else "⚠️ No explanation provided.")
+
+                    # UI display
+                    if parsed.get("needs_clarification"):
+                        st.info("The assistant needs clarification:")
+                        st.markdown(f"**Question:** {message}")
+                    else:
+                        if input_type == "draft_reply":
+                            st.success("Here’s your improved reply:")
+                        elif input_type == "comment":
+                            st.success("Here’s a suggested response to the comment:")
+                        else:
+                            st.success("Here’s the generated output:")
+
+                        st.markdown(f"**Reply:** {message}")
+                        st.markdown(f"**Explanation:** {explanation}")
+
+                    # Save all sessions, including clarification cases
                     log_session(
-                        user_input=user_input,
-                        input_type=parsed.get("input_type", "unknown"),
-                        message=parsed["message"],
-                        explanation=parsed["explanation"]
+                        user_input=json.dumps(user_input),
+                        input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
+                        message=message,
+                        explanation=explanation
                     )
                     if db:
                         try:
                             log_to_firestore(
-                                user_input=user_input,
-                                input_type=parsed.get("input_type", "unknown"),
-                                message=parsed["message"],
-                                explanation=parsed["explanation"]
+                                user_input=json.dumps(user_input),
+                                input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
+                                message=message,
+                                explanation=explanation
                             )
-                        except Exception as e:
-                            st.warning(f"⚠️ Could not log to Firebase.")
-                    st.caption(f"🔍 Detected input type: {st.session_state.input_type}")
-            except json.JSONDecodeError:
-                st.error("The AI response was not valid JSON. Try rephrasing your input.")
+                        except Exception:
+                            st.warning("⚠️ Could not log to Firebase.")
+
+                    st.caption(f"🔍 Detected input type: {input_type}")
+
+                except json.JSONDecodeError:
+                    st.error("❌ The AI response was not valid JSON.")
+                    st.text_area("🔍 Full response from GPT:", value=content, height=150)
+
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error("🚨 An unexpected error occurred.")
+                st.exception(e)
