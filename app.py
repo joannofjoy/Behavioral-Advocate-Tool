@@ -56,7 +56,7 @@ try:
         db = firestore.client()
         st.session_state.firebase_app = True
 except Exception as e:
-    st.warning(f"⚠️ Firebase initialization failed: {e}")
+    st.warning(f"⚠️ Firebase initialization failed.")
 
 
 
@@ -83,7 +83,7 @@ def log_to_firestore(user_input, input_type, message, explanation):
         db.collection("session_logs").document(doc_id).set(data)
         st.success("✅ Logged to Firestore.")
     except Exception as e:
-        st.warning(f"❌ Firestore logging failed: {e}")
+        st.warning(f"❌ Firestore logging failed.s")
 
 
 # Set up local SQLite database
@@ -229,7 +229,7 @@ Always return only valid JSON. Do not include any extra explanation or formattin
                                 explanation=parsed["explanation"]
                             )
                         except Exception as e:
-                            st.warning(f"⚠️ Could not log to Firebase: {e}")
+                            st.warning(f"⚠️ Could not log to Firebase.")
                     st.caption(f"🔍 Detected input type: {st.session_state.input_type}")
             except json.JSONDecodeError:
                 st.error("The AI response was not valid JSON. Try rephrasing your input.")
