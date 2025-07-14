@@ -46,7 +46,7 @@ try:
         db = firestore.client()
 
 except Exception:
-    st.warning("⚠️ Firebase initialization failed. Running locally without Firestore. {e}")
+    st.warning(f"⚠️ Firebase initialization failed. Running locally without Firestore. {e}")
 
 
 def log_to_firestore(user_input, input_type, message, explanation):
