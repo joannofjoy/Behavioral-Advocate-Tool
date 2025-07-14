@@ -1,4 +1,6 @@
 .env
-
+firebase_key.json
+session_logs.csv
+session_logs.db
 older versions
 processed comments
