@@ -76,14 +76,14 @@ def log_to_firestore(user_input, input_type, message, explanation):
         "llm_explanation": explanation,
     }
 
-    st.write("📤 Sending this data to Firebase:")
-    st.json(data)  # Show JSON visibly in the app
+   # st.write("📤 Sending this data to Firebase:")
+   # st.json(data)  # Show JSON visibly in the app
 
     try:
         db.collection("session_logs").document(doc_id).set(data)
-        st.success("✅ Logged to Firestore.")
+       # st.success("✅ Logged to Firestore.")
     except Exception as e:
-        st.warning(f"❌ Firestore logging failed.s")
+        st.warning(f"❌ Firestore logging failed.")
 
 
 # Set up local SQLite database
