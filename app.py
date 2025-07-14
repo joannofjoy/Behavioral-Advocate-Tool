@@ -27,27 +27,24 @@ except Exception:
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=openai_api_key)
 
-db = None  # initialize as fallback
+db = None  # initialize fallback
 
 try:
     if "firebase" in st.secrets:
-        # Running on Streamlit Cloud (TOML secret = dict)
         if "firebase_app" not in st.session_state:
-            cred = credentials.Certificate(st.secrets["firebase"])  # safe: dict input
+            cred = credentials.Certificate(st.secrets["firebase"])
             firebase_admin.initialize_app(cred)
             st.session_state.firebase_app = True
         db = firestore.client()
 
     elif os.path.exists("firebase_key.json"):
-        # Running locally with JSON key file
         if not firebase_admin._apps:
-            cred = credentials.Certificate("firebase_key.json")  # safe: path input
+            cred = credentials.Certificate("firebase_key.json")
             firebase_admin.initialize_app(cred)
         db = firestore.client()
 
-except Exception:
-    st.warning(f"⚠️ Firebase initialization failed. Running locally without Firestore. {e}")
-
+except Exception as e:
+    st.warning(f"⚠️ Firebase initialization failed: {e}")
 
 def log_to_firestore(user_input, input_type, message, explanation):
     doc_id = str(uuid.uuid4())
