@@ -188,7 +188,7 @@ You will receive two inputs as a JSON object:
 ```json
 { "follow_up_question": "Please provide either a comment or a draft reply.", "needs_clarification": true }
 - If both are provided, improve the draft in the context of the comment to make it more persuasive using behavioral science.
-- If draft_reply is provided. Do not treat it as a comment to respond to. Improve it using behavioral science. If it is vague, ask for clarification.
+- If draft_reply is provided. It is not a comment to respond to. Improve it using behavioral science. If it is vague, ask for clarification.
 - If only comment is provided, generate a persuasive reply from scratch.
 
 
@@ -227,7 +227,7 @@ Always provide final output in this format:
 
                 # Raw response
                 content = response.choices[0].message.content.strip()
-                st.write("📤 Raw GPT Response:", content)
+                
 
                 # Try parsing JSON safely
                 try:
@@ -244,7 +244,7 @@ Always provide final output in this format:
                         raise json.JSONDecodeError("No JSON object found", content, 0)
 
                     parsed = json.loads(json_str)
-                    st.write("🧾 Parsed JSON:", parsed)
+  
 
                     user_input = {
                         "comment": comment_input.strip(),
