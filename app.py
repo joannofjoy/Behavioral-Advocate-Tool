@@ -17,7 +17,12 @@ import uuid
 load_dotenv()
 
 # Get API key from environment
-openai_api_key = os.getenv("OPENAI_API_KEY")
+try:
+    openai_api_key = st.secrets["openai"]["api_key"]
+except Exception:
+    from dotenv import load_dotenv
+    load_dotenv()
+    openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
@@ -39,7 +44,7 @@ try:
             cred = credentials.Certificate("firebase_key.json")  # safe: path input
             firebase_admin.initialize_app(cred)
         db = firestore.client()
-        
+
 except Exception:
     st.warning("⚠️ Firebase initialization failed. Running locally without Firestore.")
 
