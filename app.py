@@ -14,39 +14,55 @@ import uuid
 
 
 # Load environment variables from .env (only works locally)
+# Load environment variables from .env (only works locally)
 load_dotenv()
 
-# Get API key from environment
-try:
-    openai_api_key = st.secrets["openai"]["api_key"]
-except Exception:
-    from dotenv import load_dotenv
-    load_dotenv()
-    openai_api_key = os.getenv("OPENAI_API_KEY")
+# ------------------- OPENAI API KEY -------------------
 
-# Initialize OpenAI client
+openai_api_key = os.getenv("api_key")  # Default from .env
+
+try:
+    # Check if Streamlit secrets is available and includes OpenAI key
+    openai_api_key = st.secrets["openai"]["api_key"]
+    print("🔐 Loaded OpenAI key from Streamlit secrets")
+except Exception:
+    print("🔐 Loaded OpenAI key from .env")
+
+# ------------------- OPENAI CLIENT -------------------
+
 client = openai.OpenAI(api_key=openai_api_key)
 
-db = None  # initialize fallback
+# ------------------- FIREBASE INITIALIZATION -------------------
+
+db = None
 
 try:
-    if "firebase" in st.secrets:
-        if "firebase_app" not in st.session_state:
-            cred = credentials.Certificate(st.secrets["firebase"])
-            firebase_admin.initialize_app(cred)
-            st.session_state.firebase_app = True
-        db = firestore.client()
+    firebase_config = None
+    try:
+        firebase_config = st.secrets["firebase"]
+        print("📦 Firebase config loaded from Streamlit secrets")
+    except Exception:
+        if os.path.exists("firebase_key.json"):
+            with open("firebase_key.json", "r") as f:
+                firebase_config = json.load(f)
+            print("📦 Firebase config loaded from firebase_key.json")
 
-    elif os.path.exists("firebase_key.json"):
+    if firebase_config:
         if not firebase_admin._apps:
-            cred = credentials.Certificate("firebase_key.json")
+            cred = credentials.Certificate(firebase_config)
             firebase_admin.initialize_app(cred)
         db = firestore.client()
-
+        st.session_state.firebase_app = True
 except Exception as e:
     st.warning(f"⚠️ Firebase initialization failed: {e}")
 
+
+
 def log_to_firestore(user_input, input_type, message, explanation):
+    if not db:
+        print("❌ Firestore is not initialized.")
+        return
+
     doc_id = str(uuid.uuid4())
     timestamp = datetime.datetime.utcnow().isoformat()
 
@@ -58,7 +74,16 @@ def log_to_firestore(user_input, input_type, message, explanation):
         "llm_explanation": explanation,
     }
 
-    db.collection("session_logs").document(doc_id).set(data)
+    # 🔍 Debug: show what's being sent to Firestore
+    print("✅ Attempting to log to Firestore")
+    print(json.dumps(data, indent=2))
+
+    try:
+        db.collection("session_logs").document(doc_id).set(data)
+        print("✅ Logged to Firestore.")
+    except Exception as e:
+        print("❌ Firestore logging failed:", e)
+
 
 # Set up local SQLite database
 conn = sqlite3.connect('session_logs.db', check_same_thread=False)
