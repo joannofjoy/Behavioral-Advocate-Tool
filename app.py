@@ -26,21 +26,22 @@ db = None  # initialize as fallback
 
 try:
     if "firebase" in st.secrets:
-        # Streamlit Cloud
+        # Running on Streamlit Cloud (TOML secret = dict)
         if "firebase_app" not in st.session_state:
-            cred = credentials.Certificate(st.secrets["firebase"])
+            cred = credentials.Certificate(st.secrets["firebase"])  # safe: dict input
             firebase_admin.initialize_app(cred)
             st.session_state.firebase_app = True
         db = firestore.client()
 
     elif os.path.exists("firebase_key.json"):
-        # Local development with key file
+        # Running locally with JSON key file
         if not firebase_admin._apps:
-            cred = credentials.Certificate("firebase_key.json")
+            cred = credentials.Certificate("firebase_key.json")  # safe: path input
             firebase_admin.initialize_app(cred)
         db = firestore.client()
-except Exception as e:
-    st.warning(f"⚠️ Firebase initialization failed: {e}")
+        
+except Exception:
+    st.warning("⚠️ Firebase initialization failed. Running locally without Firestore.")
 
 
 def log_to_firestore(user_input, input_type, message, explanation):
