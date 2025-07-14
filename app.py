@@ -62,7 +62,7 @@ except Exception as e:
 
 def log_to_firestore(user_input, input_type, message, explanation):
     if not db:
-        print("❌ Firestore is not initialized.")
+        st.warning("❌ Firestore is not initialized.")
         return
 
     doc_id = str(uuid.uuid4())
@@ -76,15 +76,14 @@ def log_to_firestore(user_input, input_type, message, explanation):
         "llm_explanation": explanation,
     }
 
-    # 🔍 Debug: show what's being sent to Firestore
-    print("✅ Attempting to log to Firestore")
-    print(json.dumps(data, indent=2))
+    st.write("📤 Sending this data to Firebase:")
+    st.json(data)  # Show JSON visibly in the app
 
     try:
         db.collection("session_logs").document(doc_id).set(data)
-        print("✅ Logged to Firestore.")
+        st.success("✅ Logged to Firestore.")
     except Exception as e:
-        print("❌ Firestore logging failed:", e)
+        st.warning(f"❌ Firestore logging failed: {e}")
 
 
 # Set up local SQLite database
