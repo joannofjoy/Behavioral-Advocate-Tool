@@ -1,5 +1,5 @@
 import streamlit as st
-from openai import OpenAI
+import openai
 from dotenv import load_dotenv
 import os
 import json
@@ -25,7 +25,7 @@ except Exception:
     openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize OpenAI client
-client = OpenAI(api_key=openai_api_key)
+client = openai.OpenAI(api_key=openai_api_key)
 
 db = None  # initialize as fallback
 
