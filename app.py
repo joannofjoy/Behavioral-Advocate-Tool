@@ -9,38 +9,30 @@ import uuid
 import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
+import pandas as pd
+import re
 
-
-
-
-# Load environment variables from .env (only works locally)
 # Load environment variables from .env (only works locally)
 load_dotenv()
 
 # ------------------- OPENAI API KEY -------------------
-
 openai_api_key = os.getenv("api_key")  # Default from .env
 
 try:
-    # Check if Streamlit secrets is available and includes OpenAI key
     openai_api_key = st.secrets["openai"]["api_key"]
     print("🔐 Loaded OpenAI key from Streamlit secrets")
 except Exception:
     print("🔐 Loaded OpenAI key from .env")
 
 # ------------------- OPENAI CLIENT -------------------
-
 client = openai.OpenAI(api_key=openai_api_key)
 
 # ------------------- FIREBASE INITIALIZATION -------------------
-
 db = None
-
 try:
     firebase_config = None
     try:
         firebase_config = dict(st.secrets["firebase"])
-        # Fix the private_key field by replacing \\n with \n
         firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
         print("📦 Firebase config loaded from Streamlit secrets")
     except Exception:
@@ -58,9 +50,53 @@ try:
 except Exception as e:
     st.warning(f"⚠️ Firebase initialization failed.")
 
+# ------------------- STRATEGY JSON LOADING -------------------
+def load_strategies(path="strategies.json"):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            strategies = json.load(f)
+        return strategies
+    except Exception as e:
+        st.warning("⚠️ Could not load strategies.json")
+        return []
 
+strategies = load_strategies()
 
-def log_to_firestore(user_input, input_type, message, explanation):
+def filter_strategies_by_tags(all_strategies, detected_tags):
+    matched_strategies = [s for s in all_strategies if any(tag in s["tags"] for tag in detected_tags)]
+    matched_tags = sorted(set(tag for s in matched_strategies for tag in s["tags"] if tag in detected_tags))
+    return matched_strategies, matched_tags
+
+def extract_tags_from_input(comment, draft, client):
+    prompt = f"""
+You are a tag classifier for an AI assistant. Given this input:
+
+Comment: {comment or 'N/A'}
+Draft: {draft or 'N/A'}
+
+Return a JSON list of 1–5 relevant tags that describe the emotional or messaging context. Use simple words like: angry, skeptical, defensive, curious, moral outrage, vegetarian, identity, confused, etc.
+
+Example:
+["skeptical", "identity", "open"]
+
+Only return the JSON list. No explanation.
+"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=100
+        )
+        raw = response.choices[0].message.content.strip()
+        tags = json.loads(raw)
+        return tags
+    except Exception as e:
+        st.warning("⚠️ Tag extraction failed. Proceeding without matching strategies.")
+        return []
+
+# ------------------- LOGGING -------------------
+def log_to_firestore(user_input, input_type, message, explanation, tags_input, tags_justification, matched_tags_in_strategies, strategies):
     if not db:
         st.warning("❌ Firestore is not initialized.")
         return
@@ -74,18 +110,17 @@ def log_to_firestore(user_input, input_type, message, explanation):
         "input_type": input_type,
         "llm_message": message,
         "llm_explanation": explanation,
+        "tags_input": tags_input,
+        "tags_justification": tags_justification,
+        "matched_tags_in_strategies": matched_tags_in_strategies,
+        "strategies": [s["title"] for s in strategies]
     }
-
-
 
     try:
         db.collection("session_logs").document(doc_id).set(data)
-       
     except Exception as e:
         st.warning(f"❌ Firestore logging failed.")
 
-
-# Set up local SQLite database
 conn = sqlite3.connect('session_logs.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''
@@ -95,40 +130,46 @@ c.execute('''
         user_input TEXT,
         input_type TEXT,
         llm_message TEXT,
-        llm_explanation TEXT
+        llm_explanation TEXT,
+        tags TEXT,
+        strategies TEXT,
+        tags_input TEXT,
+        tags_justification TEXT,
+        matched_tags_in_strategies TEXT
     )
 ''')
 conn.commit()
 
-def log_session(user_input, input_type, message, explanation):
+def log_session(user_input, input_type, message, explanation, tags_input, tags_justification, matched_tags_in_strategies, strategies):
     entry_id = str(uuid.uuid4())
     timestamp = str(datetime.datetime.utcnow())
 
-    # Log to SQLite
-    c.execute('INSERT INTO logs VALUES (?, ?, ?, ?, ?, ?)', 
-              (entry_id, timestamp, user_input, input_type, message, explanation))
+    c.execute('INSERT INTO logs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', 
+              (
+                  entry_id, timestamp, user_input, input_type, message, explanation,
+                  json.dumps(tags_justification),
+                  json.dumps([s["title"] for s in strategies]),
+                  json.dumps(tags_input),
+                  json.dumps(tags_justification),
+                  json.dumps(matched_tags_in_strategies)
+              ))
     conn.commit()
 
-    # Also log to CSV
     with open('session_logs.csv', 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow([timestamp, entry_id, user_input, input_type, message, explanation])
+        writer.writerow([
+            timestamp, entry_id, user_input, input_type, message, explanation,
+            ", ".join(tags_justification), ", ".join([s["title"] for s in strategies])
+        ])
 
-st.title("Behavioral Science Based Advocate Assistant")
+# ------------------- UI -------------------
+st.markdown("## Behavioral Science Based Advocate Assistant")
 st.write("""This tool helps improve social media comments for better persuasiveness using behavioral science.""")
 
 with st.expander("Optional: Include the comment you are replying to or context"):
-    comment_input = st.text_area(
-        "What did the other person say? Who are they? Any additional context?",
-        placeholder="Paste the comment here...",
-        key="comment_input"
-    )
+    comment_input = st.text_area("What did the other person say? Who are they? Any additional context?", placeholder="Paste the comment here...", key="comment_input")
 
-draft_input = st.text_area(
-    "What do you want to say in reply?",
-    placeholder="Write your reply draft here, or leave blank for GPT to generate it...",
-    key="draft_input"
-)
+draft_input = st.text_area("What do you want to say in reply?", placeholder="Write your reply draft here, or leave blank for GPT to generate it...", key="draft_input")
 
 if st.button("Generate"):
     if not comment_input.strip() and not draft_input.strip():
@@ -136,14 +177,15 @@ if st.button("Generate"):
     else:
         with st.spinner("Thinking..."):
             try:
-                # Send to GPT
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": """
+                detected_tags = extract_tags_from_input(comment_input.strip(), draft_input.strip(), client)
+                matched_strategies, matched_tags_in_strategies = filter_strategies_by_tags(strategies, detected_tags)
+                formatted_strategies = "\n".join([f"- {s['title']}: {s['description']}" for s in matched_strategies]) or "No specific strategies matched."
+
+                system_prompt = f"""
 You are a strategic animal rights advocate specializing in rewriting and crafting persuasive online replies, posts, and comments. Your goal is to maximize behavioral impact using research from behavioral science, Faunalytics, and the Vegan Advocacy Communication Hacks.
+
+Use the following behavioral strategies when applicable:
+{formatted_strategies}
 
 Your focus is on improving:
 - Tone
@@ -186,7 +228,7 @@ You will receive two inputs as a JSON object:
 - draft_reply: a draft message or reply from the user (may be empty)
 -If both are empty, return:
 ```json
-{ "follow_up_question": "Please provide either a comment or a draft reply.", "needs_clarification": true }
+{{ "follow_up_question": "Please provide either a comment or a draft reply.", "needs_clarification": true }}
 - If both are provided, improve the draft in the context of the comment to make it more persuasive using behavioral science.
 - If draft_reply is provided. It is not a comment to respond to. Improve it using behavioral science. If it is vague, ask for clarification.
 - If only comment is provided, generate a persuasive reply from scratch.
@@ -196,103 +238,93 @@ You will receive two inputs as a JSON object:
 If clarification is needed:
 
 ```json
-{
+{{
   "follow_up_question": "string",  // ask a helpful clarifying question
   "needs_clarification": true
-}
+}}
 Always provide final output in this format:
 
 ```json
-{
+{{
   "message": "...",
   "explanation": "...",
   "input_type": "draft_reply" or "comment" or "both",
   "needs_clarification": false
-}
+}}
 ```
 ⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.
-                       """
-                        },
-                        {
-                            "role": "user",
-                            "content": json.dumps({
-                                "comment": comment_input.strip(),
-                                "draft_reply": draft_input.strip()
-                            })
-                        }
+                       
+"""
+
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": json.dumps({"comment": comment_input.strip(), "draft_reply": draft_input.strip()})}
                     ],
                     temperature=0.7,
                     max_tokens=400
                 )
 
-                # Raw response
                 content = response.choices[0].message.content.strip()
-                
 
-                # Try parsing JSON safely
-                try:
-                    # Remove ```json if it exists
-                    if content.startswith("```json"):
-                        content = content.replace("```json", "").replace("```", "").strip()
-
-                    # Regex fallback
-                    import re
-                    match = re.search(r"\{.*\}", content, re.DOTALL)
-                    if match:
-                        json_str = match.group(0)
-                    else:
-                        raise json.JSONDecodeError("No JSON object found", content, 0)
-
+                if content.startswith("```json"):
+                    content = content.replace("```json", "").replace("```", "").strip()
+                match = re.search(r"\{.*\}", content, re.DOTALL)
+                if match:
+                    json_str = match.group(0)
                     parsed = json.loads(json_str)
-  
+                else:
+                    raise json.JSONDecodeError("No JSON object found", content, 0)
 
-                    user_input = {
-                        "comment": comment_input.strip(),
-                        "draft_reply": draft_input.strip()
-                    }
+                user_input = {
+                    "comment": comment_input.strip(),
+                    "draft_reply": draft_input.strip()
+                }
 
-                    input_type = parsed.get("input_type", "unknown")
-                    message = parsed.get("message") or parsed.get("follow_up_question", "⚠️ No message or question received.")
-                    explanation = parsed.get("explanation") or ("Needs clarification" if parsed.get("needs_clarification") else "⚠️ No explanation provided.")
+                input_type = parsed.get("input_type", "unknown")
+                message = parsed.get("message") or parsed.get("follow_up_question", "⚠️ No message or question received.")
+                explanation = parsed.get("explanation") or ("Needs clarification" if parsed.get("needs_clarification") else "⚠️ No explanation provided.")
 
-                    # UI display
-                    if parsed.get("needs_clarification"):
-                        st.info("The assistant needs clarification:")
-                        st.markdown(f"**Question:** {message}")
-                    else:
-                        if input_type == "draft_reply":
-                            st.success("Here’s your improved reply:")
-                        elif input_type == "comment":
-                            st.success("Here’s a suggested response to the comment:")
-                        else:
-                            st.success("Here’s the generated output:")
+                if parsed.get("needs_clarification"):
+                    st.info("The assistant needs clarification:")
+                    st.markdown(f"**Question:** {message}")
+                else:
+                    st.success("Here’s your result:")
+                    st.markdown(f"**Reply:** {message}")
+                    st.markdown(f"**Explanation:** {explanation}")
+                with st.expander("🧠 Debug: Detected Tags and Strategies"):
+                    st.write("Tags:", detected_tags)
+                    st.write("Strategies:", [s["title"] for s in matched_strategies])
 
-                        st.markdown(f"**Reply:** {message}")
-                        st.markdown(f"**Explanation:** {explanation}")
+                tags_justification = parsed.get("tags", [])
 
-                    # Save all sessions, including clarification cases
-                    log_session(
-                        user_input=json.dumps(user_input),
-                        input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
-                        message=message,
-                        explanation=explanation
-                    )
-                    if db:
-                        try:
-                            log_to_firestore(
-                                user_input=json.dumps(user_input),
-                                input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
-                                message=message,
-                                explanation=explanation
-                            )
-                        except Exception:
-                            st.warning("⚠️ Could not log to Firebase.")
+                log_session(
+                    user_input=json.dumps(user_input),
+                    input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
+                    tags_input=detected_tags,
+                    tags_justification=tags_justification,
+                    matched_tags_in_strategies=matched_tags_in_strategies,
+                    strategies=matched_strategies,
+                    message=message,
+                    explanation=explanation
+                )
+                if db:
+                    try:
+                        log_to_firestore(
+                            user_input=json.dumps(user_input),
+                            input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
+                            tags_input=detected_tags,
+                            tags_justification=parsed.get("tags", []), 
+                            matched_tags_in_strategies = matched_tags_in_strategies,
+                            strategies=matched_strategies,
+                            message=message,
+                            explanation=explanation
+                        )
+                    except Exception:
+                        st.warning("⚠️ Could not log to Firebase.")
 
-                    st.caption(f"🔍 Detected input type: {input_type}")
-
-                except json.JSONDecodeError:
-                    st.error("❌ The AI response was not valid JSON.")
-                    st.text_area("🔍 Full response from GPT:", value=content, height=150)
+                st.caption(f"🔍 Detected input type: {input_type}")
 
             except Exception as e:
                 st.error("🚨 An unexpected error occurred.")
