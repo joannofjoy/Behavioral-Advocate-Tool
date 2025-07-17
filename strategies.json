@@ -1,0 +1,90 @@
+[
+  {
+    "title": "Validate Before Redirecting",
+    "source": "CEVA",
+    "source_url": "https://veganadvocacy.org/vegan-communication-hacks/",
+    "description": "Acknowledge what the other person feels or values before gently offering a new perspective.",
+    "tags": ["defensive", "angry", "judgmental"],
+    "goals": ["de-escalate", "empathy", "openness"]
+  },
+  {
+    "title": "Share Personal Journey",
+    "source": "CEVA",
+    "source_url": "https://veganadvocacy.org/vegan-communication-hacks/",
+    "description": "Use your personal experience as a relatable narrative to model change without preaching.",
+    "tags": ["open", "curious", "skeptical"],
+    "goals": ["trust", "connection", "normalization"]
+  },
+  {
+    "title": "Listen First, Empathize",
+    "source": "Bite‑Size Vegan (Emily Moran Barwick)",
+    "source_url": "https://bitesizevegan.org/should-vegans-empathize-with-meat-eaters/",
+    "description": "Actively listen and validate before presenting facts—people need to feel heard to be receptive.",
+    "tags": ["defensive", "conflicted", "polarized"],
+    "goals": ["trust", "receptivity", "dialogue"]
+  },
+  {
+    "title": "Use Social Proof",
+    "source": "Faunalytics + CEVA",
+    "source_url": "https://faunalytics.org/how-to-become-a-more-effective-vegan-advocate/",
+    "description": "Mention how many others share similar values or are making changes to reduce isolation.",
+    "tags": ["skeptical", "resistant", "uncertain"],
+    "goals": ["normalization", "behavioral shift"]
+  },
+  {
+    "title": "Foot‑in‑the‑Door Technique",
+    "source": "Behavioral Psychology",
+    "source_url": "https://en.wikipedia.org/wiki/Foot-in-the-door_technique",
+    "description": "Start with a small request to build agreement and openness to larger asks later.",
+    "tags": ["resistant", "closed"],
+    "goals": ["incremental change", "reduce reactance"]
+  },
+  {
+    "title": "Affirm Shared Values",
+    "source": "Faunalytics",
+    "source_url": "https://faunalytics.org/how-to-become-a-more-effective-vegan-advocate/",
+    "description": "Frame the conversation through shared values like compassion or fairness.",
+    "tags": ["judgmental", "moral outrage", "angry"],
+    "goals": ["values alignment", "empathy"]
+  },
+  {
+    "title": "Ask Thoughtful Questions",
+    "source": "CEVA",
+    "source_url": "https://veganadvocacy.org/vegan-communication-hacks/",
+    "description": "Ask open-ended questions that invite reflection rather than provoke defensiveness.",
+    "tags": ["defensive", "mocking", "frustrated"],
+    "goals": ["reduce defensiveness", "promote reflection"]
+  },
+  {
+    "title": "Avoid Labels/Absolutes",
+    "source": "Greater Good Science Center",
+    "source_url": "https://greatergood.berkeley.edu/article/item/how_to_depolarize_your_social_media_feeds",
+    "description": "Steer clear of black‑and‑white terms to prevent backlash and deepen conversation.",
+    "tags": ["polarized", "judgmental"],
+    "goals": ["reduce polarization", "increase dialogue"]
+  },
+  {
+    "title": "Nonviolent Calm Modeling",
+    "source": "CEVA",
+    "source_url": "https://veganadvocacy.org/vegan-communication-hacks/",
+    "description": "Respond with calm, respectful tone to model the behavior you’d like to see.",
+    "tags": ["angry", "mocking", "judgmental"],
+    "goals": ["tone modeling", "de-escalate"]
+  },
+  {
+    "title": "Tailor to Audience Segments",
+    "source": "Faunalytics",
+    "source_url": "https://faunalytics.org/effective-wild-animal-advocacy-should-consider-diverse-audiences/",
+    "description": "Customize messaging based on audience values, e.g., health, compassion, environment.",
+    "tags": ["uncertain", "curious"],
+    "goals": ["relevance", "persuasive reach"]
+  },
+  {
+    "title": "Affirm Vegetarian Identity Before Sharing Dairy Facts",
+    "source": "Faunalytics",
+    "source_url": "https://faunalytics.org/vegetarians-choose-change-over-justification-for-dairy/",
+    "description": "Start by acknowledging the person's existing vegetarian identity and animal welfare values before introducing facts about dairy. This makes dairy reduction feel like a continuation of their values rather than a new demand.",
+    "tags": ["vegetarian", "identity", "dairy", "values", "open"],
+    "goals": ["alignment", "behavioral shift", "reduce defensiveness"]
+  }
+]
