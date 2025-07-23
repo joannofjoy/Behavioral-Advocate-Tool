@@ -1,30 +1,27 @@
-import streamlit as st
-import openai
-from dotenv import load_dotenv
-import os
-import json
-import sqlite3
-import csv
-import uuid
-import datetime
-import firebase_admin
-from firebase_admin import credentials, firestore
-import pandas as pd
-import re
+import streamlit as st  # Streamlit for UI
+import openai            # OpenAI client library
+from dotenv import load_dotenv  # Load .env files
+import os                # OS utilities (env vars, file paths)
+import json              # JSON encoding/decoding
+import sqlite3           # SQLite for local logging
+import csv               # CSV writing for backup logs
+import uuid              # Generate unique IDs
+import datetime          # Timestamps
+import firebase_admin    # Firebase Admin SDK
+from firebase_admin import credentials, firestore  # Firestore client
+import re                # Regular expressions for parsing
 
-# Load environment variables from .env (only works locally)
+# Load environment variables from .env
 load_dotenv()
 
 # ------------------- OPENAI API KEY -------------------
-openai_api_key = os.getenv("api_key")  # Default from .env
-
+# Attempt to read API key from environment, then from Streamlit secrets
+openai_api_key = os.getenv("api_key")
 try:
     openai_api_key = st.secrets["openai"]["api_key"]
-    print("🔐 Loaded OpenAI key from Streamlit secrets")
 except Exception:
-    print("🔐 Loaded OpenAI key from .env")
-
-# ------------------- OPENAI CLIENT -------------------
+    pass
+# Initialize OpenAI client with the loaded API key
 client = openai.OpenAI(api_key=openai_api_key)
 
 # ------------------- FIREBASE INITIALIZATION -------------------
@@ -32,300 +29,270 @@ db = None
 try:
     firebase_config = None
     try:
+        # Try loading Firebase config from Streamlit secrets
         firebase_config = dict(st.secrets["firebase"])
+        # Fix newline escapes in the private key
         firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
-        print("📦 Firebase config loaded from Streamlit secrets")
     except Exception:
+        # Fallback: load config from local JSON file if available
         if os.path.exists("firebase_key.json"):
-            with open("firebase_key.json", "r") as f:
+            with open("firebase_key.json") as f:
                 firebase_config = json.load(f)
-            print("📦 Firebase config loaded from firebase_key.json")
-
     if firebase_config:
+        # Initialize Firebase app only once
         if not firebase_admin._apps:
             cred = credentials.Certificate(firebase_config)
             firebase_admin.initialize_app(cred)
+        # Get Firestore client
         db = firestore.client()
         st.session_state.firebase_app = True
 except Exception as e:
-    st.warning(f"⚠️ Firebase initialization failed.")
+    st.warning(f"⚠️ Firebase init failed: {e}")
 
-# ------------------- STRATEGY JSON LOADING -------------------
+# ------------------- HELPERS -------------------
+def load_prompt(fn):
+    """
+    Read and return the content of a prompt file.
+    """
+    with open(fn, encoding="utf-8") as f:
+        return f.read()
+
 def load_strategies(path="strategies.json"):
+    """
+    Load the list of behavioral strategies from a JSON file.
+    """
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            strategies = json.load(f)
-        return strategies
-    except Exception as e:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
         st.warning("⚠️ Could not load strategies.json")
         return []
 
+# Load strategies into memory
 strategies = load_strategies()
 
-def filter_strategies_by_tags(all_strategies, detected_tags):
-    matched_strategies = [s for s in all_strategies if any(tag in s["tags"] for tag in detected_tags)]
-    matched_tags = sorted(set(tag for s in matched_strategies for tag in s["tags"] if tag in detected_tags))
-    return matched_strategies, matched_tags
+def filter_strategies_by_tags(all_strats, tags):
+    """
+    Given all strategies and a list of detected tags,
+    return the subset of strategies whose tags match,
+    and the list of matched tags.
+    """
+    matched = [s for s in all_strats if any(t in s.get("tags", []) for t in tags)]
+    matched_tags = sorted({t for s in matched for t in s.get("tags", []) if t in tags})
+    return matched, matched_tags
 
-def extract_tags_from_input(comment, draft, client):
-    prompt = f"""
-You are a tag classifier for an AI assistant. Given this input:
-
-Comment: {comment or 'N/A'}
-Draft: {draft or 'N/A'}
-
-Return a JSON list of 1–5 relevant tags that describe the emotional or messaging context. Use simple words like: angry, skeptical, defensive, curious, moral outrage, vegetarian, identity, confused, etc.
-
-Example:
-["skeptical", "identity", "open"]
-
-Only return the JSON list. No explanation.
-"""
+def extract_tags(comment, draft):
+    """
+    Call the tag-extraction prompt to classify the emotional/contextual tags
+    for the provided comment and draft text.
+    """
+    prompt = load_prompt("prompt1.txt").format(comment=comment or "N/A", draft=draft or "N/A")
     try:
-        response = client.chat.completions.create(
+        r = client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role":"user","content":prompt}],
             temperature=0.3,
             max_tokens=100
         )
-        raw = response.choices[0].message.content.strip()
-        tags = json.loads(raw)
-        return tags
-    except Exception as e:
-        st.warning("⚠️ Tag extraction failed. Proceeding without matching strategies.")
+        return json.loads(r.choices[0].message.content.strip())
+    except Exception:
+        st.warning("⚠️ Tag extraction failed.")
         return []
 
-# ------------------- LOGGING -------------------
-def log_to_firestore(user_input, input_type, message, explanation, tags_input, tags_justification, matched_tags_in_strategies, strategies):
-    if not db:
-        st.warning("❌ Firestore is not initialized.")
-        return
-
-    doc_id = str(uuid.uuid4())
-    timestamp = datetime.datetime.utcnow().isoformat()
-
-    data = {
-        "timestamp": timestamp,
-        "user_input": user_input,
-        "input_type": input_type,
-        "llm_message": message,
-        "llm_explanation": explanation,
-        "tags_input": tags_input,
-        "tags_justification": tags_justification,
-        "matched_tags_in_strategies": matched_tags_in_strategies,
-        "strategies": [s["title"] for s in strategies]
-    }
-
-    try:
-        db.collection("session_logs").document(doc_id).set(data)
-    except Exception as e:
-        st.warning(f"❌ Firestore logging failed.")
-
+# ------------------- LOGGING SETUP -------------------
+# Initialize SQLite connection and cursor
 conn = sqlite3.connect('session_logs.db', check_same_thread=False)
 c = conn.cursor()
+# Create logs table if it doesn't exist
 c.execute('''
-    CREATE TABLE IF NOT EXISTS logs (
-        id TEXT PRIMARY KEY,
-        timestamp TEXT,
-        user_input TEXT,
-        input_type TEXT,
-        llm_message TEXT,
-        llm_explanation TEXT,
-        tags TEXT,
-        strategies TEXT,
-        tags_input TEXT,
-        tags_justification TEXT,
-        matched_tags_in_strategies TEXT
-    )
-''')
+CREATE TABLE IF NOT EXISTS logs (
+  id TEXT PRIMARY KEY,
+  timestamp TEXT,
+  user_input TEXT,
+  input_type TEXT,
+  llm_message TEXT,
+  llm_explanation TEXT,
+  tags_input TEXT,
+  tags_justification TEXT,
+  matched_tags TEXT,
+  matched_tags_in_strategies TEXT,
+  strategies TEXT,
+  rating TEXT,
+  written_feedback TEXT
+)''')
 conn.commit()
 
-def log_session(user_input, input_type, message, explanation, tags_input, tags_justification, matched_tags_in_strategies, strategies):
-    entry_id = str(uuid.uuid4())
-    timestamp = str(datetime.datetime.utcnow())
-
-    c.execute('INSERT INTO logs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', 
-              (
-                  entry_id, timestamp, user_input, input_type, message, explanation,
-                  json.dumps(tags_justification),
-                  json.dumps([s["title"] for s in strategies]),
-                  json.dumps(tags_input),
-                  json.dumps(tags_justification),
-                  json.dumps(matched_tags_in_strategies)
-              ))
+def log_session(user_input, input_type, message, explanation,
+                tags_input, tags_justification,
+                matched_tags, matched_tags_in_strategies,
+                strategies, rating=None, feedback=None):
+    """
+    Log a session entry to SQLite and append it to a CSV file.
+    """
+    entry_id = str(uuid.uuid4())  # Unique row ID
+    ts = datetime.datetime.utcnow().isoformat()
+    # Insert into SQLite
+    c.execute(
+        'INSERT INTO logs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        (entry_id, ts, user_input, input_type, message, explanation,
+         json.dumps(tags_input), json.dumps(tags_justification),
+         json.dumps(matched_tags), json.dumps(matched_tags_in_strategies),
+         json.dumps([s['title'] for s in strategies]),
+         str(rating) if rating is not None else None,
+         feedback)
+    )
     conn.commit()
-
-    with open('session_logs.csv', 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            timestamp, entry_id, user_input, input_type, message, explanation,
-            ", ".join(tags_justification), ", ".join([s["title"] for s in strategies])
+    # Append to CSV as a backup
+    with open('session_logs.csv','a',newline='',encoding='utf-8') as f:
+        csv.writer(f).writerow([
+            ts, entry_id, user_input, input_type, message, explanation,
+            json.dumps(tags_input), json.dumps(tags_justification),
+            json.dumps(matched_tags), json.dumps(matched_tags_in_strategies),
+            json.dumps([s['title'] for s in strategies]), rating, feedback
         ])
 
+def log_to_firestore(user_input, input_type, message, explanation,
+                     tags_input, tags_justification,
+                     matched_tags, matched_tags_in_strategies,
+                     strategies, rating=None, written_feedback=None):
+    """
+    Log the session entry to Firestore (if initialized).
+    """
+    if not db:
+        return
+    doc = {
+        'timestamp': datetime.datetime.utcnow().isoformat(),
+        'user_input': user_input,
+        'input_type': input_type,
+        'llm_message': message,
+        'llm_explanation': explanation,
+        'tags_input': tags_input,
+        'tags_justification': tags_justification,
+        'matched_tags': matched_tags,
+        'matched_tags_in_strategies': matched_tags_in_strategies,
+        'strategies': [s['title'] for s in strategies],
+        'rating': rating,
+        'written_feedback': written_feedback
+    }
+    try:
+        db.collection('session_logs').document(str(uuid.uuid4())).set(doc)
+    except Exception:
+        st.warning("❌ Firestore log failed.")
+
 # ------------------- UI -------------------
+# App title
+st.markdown("""
+    <style>
+    /* Reduce top padding in main container */
+    .block-container { padding-top: 1rem; }
+    /* Make the title smaller */
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    </style>
+""", unsafe_allow_html=True)
+
+# Smaller title
 st.markdown("## Behavioral Science Based Advocate Assistant")
 st.write("""This tool helps improve social media comments for better persuasiveness using behavioral science.""")
+# Input areas for context and draft reply
 
-with st.expander("Optional: Include the comment you are replying to or context"):
-    comment_input = st.text_area("What did the other person say? Who are they? Any additional context?", placeholder="Paste the comment here...", key="comment_input")
+# Input for context/comment with placeholder instruction
+comment = st.text_area(
+    "What did the other person say? Who are they? Any additional context?",
+    key='comment_input',
+    placeholder="Paste the other person's comment and add any additional context here..."
+)
 
-draft_input = st.text_area("What do you want to say in reply?", placeholder="Write your reply draft here, or leave blank for GPT to generate it...", key="draft_input")
+# Draft reply as an optional collapsible section, with placeholder
+with st.expander("Optional: Your draft reply"):
+    draft = st.text_area(
+        "",
+        key='draft_input',
+        placeholder="Write your reply draft here, or leave blank for the assistant to generate it...",
+        label_visibility="collapsed"
+    )
 
-if st.button("Generate"):
-    if not comment_input.strip() and not draft_input.strip():
-        st.warning("Please enter a comment, a draft reply, or both.")
+# Generate button: starts the LLM generation flow
+if st.button("Generate a reply"):
+    if not comment.strip() and not draft.strip():
+        st.warning("Enter context or draft.")
     else:
-        with st.spinner("Thinking..."):
-            try:
-                detected_tags = extract_tags_from_input(comment_input.strip(), draft_input.strip(), client)
-                matched_strategies, matched_tags_in_strategies = filter_strategies_by_tags(strategies, detected_tags)
-                formatted_strategies = "\n".join([f"- {s['title']}: {s['description']}" for s in matched_strategies]) or "No specific strategies matched."
-
-                system_prompt = f"""
-You are a strategic animal rights advocate specializing in rewriting and crafting persuasive online replies, posts, and comments. Your goal is to maximize behavioral impact using research from behavioral science, Faunalytics, and the Vegan Advocacy Communication Hacks.
-
-Use the following behavioral strategies when applicable:
-{formatted_strategies}
-
-Your focus is on improving:
-- Tone
-- Structure and clarity
-- Framing
-- Emotional appeal
-- Strength of call-to-action
-
-Speak in a warm, relatable, and confident tone—like a thoughtful friend who went vegan for animals and wants to help others understand why it matters. Avoid sounding robotic, generic, overly academic, or confrontational.
-
-Language rules:
-- Avoid em dashes entirely; prefer commas or hyphens when needed.
-- Use simple, conversational English that’s still intelligent and persuasive.
-- Keep responses short: 2–4 sentences to ensure clarity and emotional impact in fast-paced online discussions.
-
-Persuasion strategies:
-- Adjust arguments based on the audience. Use emotional appeals for empathetic users, health/environmental framing for skeptics, and inclusive language to reduce resistance.
-- Avoid moral absolutes or information overload. Encourage “as vegan as possible” thinking and low-pressure asks like “try one plant-based meal.”
-- Avoid sarcasm, confrontation, or anything that provokes defensiveness.
-- Promote sustainable advocacy and help users avoid burnout.
-- Stick to the facts. Clarify misinformation or health trends that are unhealthy.
-- Never endorse or normalize animal use.
-- Never validate meat-eating, even with ex-vegans. 
-- When talking about ex-vegans, remind about animal suffering, values, and the role of getting adequate support and nutrition information when going vegan.
-
-When correcting misinformation (e.g. “vegan = unhealthy” or “high-carb = bad”), be respectful and clear. Use facts confidently, not aggressively. Refer to reputable sources (like major health organizations) when needed. Always prioritize clarity and empathy.
-
-Effective techniques to use:
-1. Acknowledge the other person’s perspective: “I used to love cheese too…”
-2. Briefly share your personal story: “I became vegan after a lifetime of eating meat…”
-3. With sceptics, invite allyship, not conversion: praise small steps like Meatless Mondays or signing petitions.
-4. Encourage identity alignment: help others see how their values already match vegan ethics.
-5. Use emotionally resonant, hopeful, and inclusive framing.
-
----
-
-You will receive two inputs as a JSON object:
-
-- comment: what someone else said (may be empty)
-- draft_reply: a draft message or reply from the user (may be empty)
--If both are empty, return:
-```json
-{{ "follow_up_question": "Please provide either a comment or a draft reply.", "needs_clarification": true }}
-- If both are provided, improve the draft in the context of the comment to make it more persuasive using behavioral science.
-- If draft_reply is provided. It is not a comment to respond to. Improve it using behavioral science. If it is vague, ask for clarification.
-- If only comment is provided, generate a persuasive reply from scratch.
+        # Set flags and reset feedback state
+        st.session_state.run = True
+        st.session_state.initial_logged = False
+        #st.session_state.feedback = ''         # initialize feedback storage
+        st.session_state.rating = None
+        st.rerun()
 
 
 
-If clarification is needed:
+# Main generation & feedback flow
+if st.session_state.get('run'):
+    with st.spinner("Thinking..."):
+        # Extract tags and match strategies
+        tags = extract_tags(comment.strip(), draft.strip())
+        strats, matched_tags = filter_strategies_by_tags(strategies, tags)
 
-```json
-{{
-  "follow_up_question": "string",  // ask a helpful clarifying question
-  "needs_clarification": true
-}}
-Always provide final output in this format:
+        # Build strat block
+        strat_block = "\n".join(f"- {s['title']}: {s['description']}" for s in strats) or "No strategies matched."
 
-```json
-{{
-  "message": "...",
-  "explanation": "...",
-  "input_type": "draft_reply" or "comment" or "both",
-  "needs_clarification": false
-}}
-```
-⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.
-                       
-"""
+        # ← Inject saved feedback into prompt2 when present
+        base_prompt = load_prompt("prompt2.txt").format(formatted_strategies=strat_block)
+        if st.session_state.get('feedback'):
+            prompt = f"User feedback: \"{st.session_state['feedback']}\"\n\n" + base_prompt
+        else:
+            prompt = base_prompt
 
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": json.dumps({"comment": comment_input.strip(), "draft_reply": draft_input.strip()})}
-                    ],
-                    temperature=0.7,
-                    max_tokens=400
-                )
+        # Call OpenAI to get the rewritten reply
+        r = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role":"system","content":prompt},
+                {"role":"user","content":json.dumps({'comment':comment,'draft_reply':draft})}
+            ],
+            temperature=0.7,
+            max_tokens=400
+        )
+        # Clean up and parse the JSON response
+        txt = r.choices[0].message.content
+        if txt.startswith("```json"):
+            txt = txt.strip('```json').strip('```')
+        parsed = json.loads(re.search(r"\{.*\}", txt, re.DOTALL).group(0))
 
-                content = response.choices[0].message.content.strip()
+        # Prepare values for logging & display
+        user_in = json.dumps({'comment':comment,'draft_reply':draft})
+        itype = parsed.get('input_type','unknown')
+        msg = parsed.get('message', parsed.get('follow_up_question',''))
+        expl = parsed.get('explanation') or ('Needs clarification' if parsed.get('needs_clarification') else '')
+        just = parsed.get('tags', [])
 
-                if content.startswith("```json"):
-                    content = content.replace("```json", "").replace("```", "").strip()
-                match = re.search(r"\{.*\}", content, re.DOTALL)
-                if match:
-                    json_str = match.group(0)
-                    parsed = json.loads(json_str)
-                else:
-                    raise json.JSONDecodeError("No JSON object found", content, 0)
+        # Initial log (only once per generation)
+        if not st.session_state.initial_logged:
+            log_session(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats)
+            log_to_firestore(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats)
+            st.session_state.initial_logged = True
 
-                user_input = {
-                    "comment": comment_input.strip(),
-                    "draft_reply": draft_input.strip()
-                }
+        # Display the reply and explanation
+        st.subheader('Reply')
+        st.write(msg)
+        st.subheader('Explanation')
+        st.write(expl)
 
-                input_type = parsed.get("input_type", "unknown")
-                message = parsed.get("message") or parsed.get("follow_up_question", "⚠️ No message or question received.")
-                explanation = parsed.get("explanation") or ("Needs clarification" if parsed.get("needs_clarification") else "⚠️ No explanation provided.")
+        # Feedback inputs (slider & text area)
+        rate = st.slider('How helpful?', 1, 5, 3, key='rating_input')
+        fb = st.text_area('Any feedback?', key='fb_input')
+        st.session_state.feedback = fb         # ← store feedback for regeneration
+        st.session_state.rating = rate
 
-                if parsed.get("needs_clarification"):
-                    st.info("The assistant needs clarification:")
-                    st.markdown(f"**Question:** {message}")
-                else:
-                    st.success("Here’s your result:")
-                    st.markdown(f"**Reply:** {message}")
-                    st.markdown(f"**Explanation:** {explanation}")
-                with st.expander("🧠 Debug: Detected Tags and Strategies"):
-                    st.write("Tags:", detected_tags)
-                    st.write("Strategies:", [s["title"] for s in matched_strategies])
-
-                tags_justification = parsed.get("tags", [])
-
-                log_session(
-                    user_input=json.dumps(user_input),
-                    input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
-                    tags_input=detected_tags,
-                    tags_justification=tags_justification,
-                    matched_tags_in_strategies=matched_tags_in_strategies,
-                    strategies=matched_strategies,
-                    message=message,
-                    explanation=explanation
-                )
-                if db:
-                    try:
-                        log_to_firestore(
-                            user_input=json.dumps(user_input),
-                            input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
-                            tags_input=detected_tags,
-                            tags_justification=parsed.get("tags", []), 
-                            matched_tags_in_strategies = matched_tags_in_strategies,
-                            strategies=matched_strategies,
-                            message=message,
-                            explanation=explanation
-                        )
-                    except Exception:
-                        st.warning("⚠️ Could not log to Firebase.")
-
-                st.caption(f"🔍 Detected input type: {input_type}")
-
-            except Exception as e:
-                st.error("🚨 An unexpected error occurred.")
-                st.exception(e)
+        # Save feedback on button click (logs but doesn't rerun)
+        if st.button('Send Feedback'):
+            log_session(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats, rate, fb)
+            log_to_firestore(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats, rate, fb)
+            st.success('Feedback saved!')
+        if st.button("Regenerate with feedback"):
+            st.session_state.run = True      # marks that we should re-call the LLM
+            st.session_state.initial_logged = False
+            # (don’t clear feedback here)
+            st.rerun()
+        # New conversation button clears all state
+        if st.button('New session'):
+            st.session_state.clear()
