@@ -84,7 +84,7 @@
     "source": "Faunalytics",
     "source_url": "https://faunalytics.org/vegetarians-choose-change-over-justification-for-dairy/",
     "description": "Start by acknowledging the person's existing vegetarian identity and animal welfare values before introducing facts about dairy. This makes dairy reduction feel like a continuation of their values rather than a new demand.",
-    "tags": ["vegetarian", "identity", "dairy", "values", "open"],
+    "tags": ["vegetarian"],
     "goals": ["alignment", "behavioral shift", "reduce defensiveness"]
   }
 ]
