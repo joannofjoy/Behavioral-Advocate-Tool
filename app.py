@@ -203,15 +203,15 @@ if st.session_state.get('run'):
                 f"- Rating: {rating_val}/5\n\n"
                 f"Revise your reply accordingly before applying the rest of the instructions.\n"
                 f"If the rating is under 4, that means the user wasn’t fully satisfied — make sure to address their concerns. The lower the rating, the more you should change the reply. \n"
-                f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. \n"
+                f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. If you did not include any part of the feedback, explain why. \n"
             )
 
             prompt = feedback_block + "\n" + base_prompt
         else:
             prompt = base_prompt
 
-        st.markdown("#### Prompt passed to GPT")
-        st.code(prompt)
+       # st.markdown("#### Prompt passed to GPT")
+       # st.code(prompt)
 
         r = client.chat.completions.create(
             model="gpt-4o",
@@ -261,7 +261,7 @@ if st.session_state.get('run'):
         st.session_state.feedback = None
 
 if st.session_state.history:
-    st.markdown("---")
+
     if len(st.session_state.history) == 1:
         latest = st.session_state.history[-1]
         st.markdown(f"<div class='reply-line'><span class='reply-label'>Reply:</span>{latest['reply']}</div>", unsafe_allow_html=True)
