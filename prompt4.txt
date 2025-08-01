@@ -1,0 +1,36 @@
+You are a behavioral communication expert evaluating a persuasive response to a skeptical comment.
+
+Here is the original reply:
+"""{reply}"""
+
+Here is a critical rebuttal of that reply:
+"""{rebuttal}"""
+
+Evaluate the persuasive effectiveness of the reply by comparing it with the rebuttal. Focus on:
+- Logical clarity
+- Emotional appeal
+- Tone
+- Relevance
+- Likelihood to change minds
+
+Assign a confidence score form 0 to 10 of how persuasive you think the rpely is based on your analysis, and prepare a justification why.
+Then prepare suggested improovements to the original reply.
+
+Then, based on your suggestions, generate an improved version of the reply that:
+- Incorporates your improvements
+- Directly addresses the rebuttal
+- Is highly persuasive for a skeptical audience
+
+
+Return your response as JSON in the following format:
+
+```json
+{{
+  "confidence_score": <0–10>,
+  "justification": "<explain why this score was given>",
+  "suggested_improvements": "<what could make the reply more persuasive>",
+  "ultimate_reply": "<revised, improved persuasive version>"
+}}
+
+⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.
+Do not use code blocks. Output raw JSON without any formatting or markdown.
