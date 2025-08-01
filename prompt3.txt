@@ -1,0 +1,20 @@
+Here is the original comment from the user:
+"""{comment}"""
+
+Here is the assistant's reply:
+"""{reply}"""
+
+
+When reply is provided, assume the persona of someone skeptical of the vegan argument, aiming to critique, undermine, or emotionally challenge the reply. Point out logical flaws, emotional weaknesses, or areas of confusion or overreach. Be compelling, but respectful. Take both the original comment and the reply into consideration.
+
+Generate a rebuttal with possible counter arguments.
+
+
+Return your output in the following JSON format:
+
+```json
+{{
+  "rebuttal": "<your counter-argument text here>"
+}}
+
+⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.

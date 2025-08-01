@@ -81,6 +81,75 @@ def extract_tags(comment, draft):
         st.warning("⚠️ Tag extraction failed.")
         return []
 
+def generate_rebuttal(reply: str, comment: str, model="gpt-4o", temperature=0.7) -> str:
+    try:
+        rebuttal_prompt = load_prompt("prompt3.txt").format(reply=reply, comment=comment)
+        r = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a skeptical, articulate critic of vegan arguments, tasked with challenging the assistant’s message."},
+                {"role": "user", "content": rebuttal_prompt}
+            ],
+            temperature=temperature,
+            max_tokens=400
+        )
+        txt = r.choices[0].message.content.strip()
+
+        # Clean up code block formatting if GPT adds it
+        if txt.startswith("```json") or txt.startswith("```"):
+            txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.MULTILINE).strip()
+
+        parsed = json.loads(re.search(r"\{.*\}", txt, re.DOTALL).group(0))
+        return parsed.get("rebuttal", "[Rebuttal missing]")
+    except Exception as e:
+        st.warning(f"⚠️ Rebuttal generation failed: {e}")
+        return ""
+
+def evaluate_reply(reply: str, rebuttal: str, model="gpt-4o", temperature=0.3) -> dict:
+    txt = ""
+    try:
+        eval_prompt = load_prompt("prompt4.txt").format(reply=reply, rebuttal=rebuttal)
+        r = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are an expert in persuasive communication and behavioral science. Respond only with raw JSON. Do not use markdown."},
+                {"role": "user", "content": eval_prompt}
+            ],
+            temperature=temperature,
+            max_tokens=500
+        )
+
+        txt = r.choices[0].message.content.strip()
+
+        # Remove code fences just in case
+        txt = re.sub(r"^```(?:json)?\s*", "", txt)
+        txt = re.sub(r"\s*```$", "", txt)
+
+        match = re.search(r"\{[\s\S]*\}", txt)
+        if not match:
+            raise ValueError("No JSON object found in GPT output.")
+
+        json_block = match.group(0)
+        parsed = json.loads(json_block)
+
+        return {
+            "confidence_score": parsed.get("confidence_score"),
+            "justification": parsed.get("justification", "").strip(),
+            "suggested_improvements": parsed.get("suggested_improvements", "").strip(),
+            "ultimate_reply": parsed.get("ultimate_reply", "").strip()
+        }
+
+    except Exception as e:
+        st.warning(f"⚠️ Evaluation failed: {e}")
+        st.markdown("### 🐞 Debug: Raw GPT output")
+        st.code(txt or "[No GPT output]", language="json")
+        return {
+            "confidence_score": None,
+            "justification": "Evaluation failed.",
+            "suggested_improvements": "",
+            "ultimate_reply": ""
+        }
+
 # Logging setup
 conn = sqlite3.connect('session_logs.db', check_same_thread=False)
 c = conn.cursor()
@@ -232,6 +301,8 @@ if st.session_state.get('run'):
         msg = parsed.get('message', parsed.get('follow_up_question', ''))
         expl = parsed.get('explanation') or ('Needs clarification' if parsed.get('needs_clarification') else '')
         just = parsed.get('tags', [])
+        rebuttal = generate_rebuttal(msg, comment)
+        evaluation = evaluate_reply(msg, rebuttal)
         session_id = st.session_state["session_id"]
 
         st.session_state.history.append({
@@ -243,6 +314,11 @@ if st.session_state.get('run'):
             "justification": just,
             "matched_tags": matched_tags,
             "strategies": strats,
+            "rebuttal": rebuttal,
+            "confidence_score": evaluation["confidence_score"],
+            "evaluation_justification": evaluation["justification"],
+            "suggested_improvements": evaluation["suggested_improvements"],
+            "ultimate_reply": evaluation["ultimate_reply"],
             "session_id": session_id
         })
         if len(st.session_state.history) > 1:
@@ -266,6 +342,15 @@ if st.session_state.history:
         latest = st.session_state.history[-1]
         st.markdown(f"<div class='reply-line'><span class='reply-label'>Reply:</span>{latest['reply']}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>", unsafe_allow_html=True)
+        if latest.get("rebuttal"):
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Rebuttal:</span>{latest['rebuttal']}</div>", unsafe_allow_html=True)
+        if latest.get("confidence_score") is not None:
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Confidence Score:</span>{latest['confidence_score']}/10</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Why this score?</span>{latest['evaluation_justification']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Suggested Improvements:</span>{latest['suggested_improvements']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Ultimate Reply:</span>{latest['ultimate_reply']}</div>", unsafe_allow_html=True)
+
+
     else:
         col1, col2 = st.columns([1, 1])
         with col1:
