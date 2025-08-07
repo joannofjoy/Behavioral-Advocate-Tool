@@ -105,55 +105,6 @@ def generate_rebuttal(reply: str, comment: str, model="gpt-4o", temperature=0.7)
         st.warning(f"⚠️ Rebuttal generation failed: {e}")
         return ""
 
-def evaluate_reply(reply: str, rebuttal: str, model="gpt-4o", temperature=0.3) -> dict:
-    txt = ""
-    try:
-        eval_prompt = load_prompt("prompt4.txt").format(
-        comment=comment,
-        reply=reply,
-        rebuttal=rebuttal,
-        strategies_used=strat_block  # ✅ Injects the strategies from prompt2
-        )
-        r = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are an expert in persuasive communication and behavioral science. Respond only with raw JSON. Do not use markdown."},
-                {"role": "user", "content": eval_prompt}
-            ],
-            temperature=temperature,
-            max_tokens=500
-        )
-
-        txt = r.choices[0].message.content.strip()
-
-        # Remove code fences just in case
-        txt = re.sub(r"^```(?:json)?\s*", "", txt)
-        txt = re.sub(r"\s*```$", "", txt)
-
-        match = re.search(r"\{[\s\S]*\}", txt)
-        if not match:
-            raise ValueError("No JSON object found in GPT output.")
-
-        json_block = match.group(0)
-        parsed = json.loads(json_block)
-
-        return {
-            "confidence_score": parsed.get("confidence_score"),
-            "justification": parsed.get("justification", "").strip(),
-            "suggested_improvements": parsed.get("suggested_improvements", "").strip(),
-            "ultimate_reply": parsed.get("ultimate_reply", "").strip()
-        }
-
-    except Exception as e:
-        st.warning(f"⚠️ Evaluation failed: {e}")
-        st.markdown("### 🐞 Debug: Raw GPT output")
-        st.code(txt or "[No GPT output]", language="json")
-        return {
-            "confidence_score": None,
-            "justification": "Evaluation failed.",
-            "suggested_improvements": "",
-            "ultimate_reply": ""
-        }
 
 # Logging setup
 conn = sqlite3.connect('session_logs.db', check_same_thread=False)
@@ -334,7 +285,7 @@ if st.session_state.get('run'):
             st.session_state.run = False
             st.rerun()
         rebuttal = generate_rebuttal(msg, comment)
-        evaluation = evaluate_reply(msg, rebuttal)
+
 
 
         st.session_state.history.append({
@@ -347,10 +298,6 @@ if st.session_state.get('run'):
             "matched_tags": matched_tags,
             "strategies": strats,
             "rebuttal": rebuttal,
-            "confidence_score": evaluation["confidence_score"],
-            "evaluation_justification": evaluation["justification"],
-            "suggested_improvements": evaluation["suggested_improvements"],
-            "ultimate_reply": evaluation["ultimate_reply"],
             "session_id": session_id
         })
         if len(st.session_state.history) > 1:
@@ -375,13 +322,8 @@ if st.session_state.history:
         st.markdown(f"<div class='reply-line'><span class='reply-label'>Reply:</span>{latest['reply']}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>", unsafe_allow_html=True)
         if latest.get("rebuttal"):
-            st.markdown(f"<div class='reply-line'><span class='reply-label'>Rebuttal:</span>{latest['rebuttal']}</div>", unsafe_allow_html=True)
-        if latest.get("confidence_score") is not None:
-            st.markdown(f"<div class='reply-line'><span class='reply-label'>Confidence Score:</span>{latest['confidence_score']}/10</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='reply-line'><span class='reply-label'>Why this score?</span>{latest['evaluation_justification']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='reply-line'><span class='reply-label'>Suggested Improvements:</span>{latest['suggested_improvements']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='reply-line'><span class='reply-label'>Ultimate Reply:</span>{latest['ultimate_reply']}</div>", unsafe_allow_html=True)
-
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{latest['rebuttal']}</div>", unsafe_allow_html=True)
+ 
 
     else:
         col1, col2 = st.columns([1, 1])
@@ -389,6 +331,9 @@ if st.session_state.history:
             latest = st.session_state.history[-1]
             st.markdown(f"<div class='reply-line'><span class='reply-label'>Latest Reply:</span>{latest['reply']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>", unsafe_allow_html=True)
+            if latest.get("rebuttal"):
+                st.markdown(f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{latest['rebuttal']}</div>", unsafe_allow_html=True)
+ 
         with col2:
             total_versions = len(st.session_state.history) - 1  # Exclude latest
 
@@ -405,8 +350,10 @@ if st.session_state.history:
                     st.button(" > ", key="next_btn", on_click=lambda: st.session_state.update({"history_index": min(total_versions - 1, st.session_state.history_index + 1)}),  use_container_width=True)
 
                 selected = st.session_state.history[st.session_state.history_index]
-                st.markdown(f"<div class='reply-line'><span class='reply-label'>v{st.session_state.history_index+1}:</span>{selected['reply']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='reply-line'><span class='reply-label'>Reply Version {st.session_state.history_index+1}:</span>{selected['reply']}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{selected['explanation']}</div>", unsafe_allow_html=True)
+                if selected.get("rebuttal"):
+                    st.markdown(f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{selected['rebuttal']}</div>", unsafe_allow_html=True)
             else:
                 st.info("No previous versions yet.")
 
