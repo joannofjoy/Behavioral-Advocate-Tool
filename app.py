@@ -108,7 +108,12 @@ def generate_rebuttal(reply: str, comment: str, model="gpt-4o", temperature=0.7)
 def evaluate_reply(reply: str, rebuttal: str, model="gpt-4o", temperature=0.3) -> dict:
     txt = ""
     try:
-        eval_prompt = load_prompt("prompt4.txt").format(reply=reply, rebuttal=rebuttal)
+        eval_prompt = load_prompt("prompt4.txt").format(
+        comment=comment,
+        reply=reply,
+        rebuttal=rebuttal,
+        strategies_used=strat_block  # ✅ Injects the strategies from prompt2
+        )
         r = client.chat.completions.create(
             model=model,
             messages=[
@@ -230,7 +235,7 @@ def log_to_firestore(user_input, input_type, message, explanation,
 # ------------------- UI -------------------
 st.markdown("""
     <style>
-    .block-container { padding-top: 1rem; }
+    .block-container { padding-top: 2rem; }
     h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
     .reply-line { font-size: 0.9rem; margin-bottom: 0.5rem; }
     .reply-label { font-weight: bold; margin-right: 0.25rem; }
@@ -256,6 +261,7 @@ if st.button("Generate a reply"):
 
 if st.session_state.get('run'):
     with st.spinner("Thinking..."):
+        session_id = st.session_state["session_id"]
         tags = extract_tags(comment.strip(), draft.strip())
         strats, matched_tags = filter_strategies_by_tags(strategies, tags)
         strat_block = "\n".join(f"- {s['title']}: {s['description']}" for s in strats) or "No strategies matched."
@@ -301,9 +307,35 @@ if st.session_state.get('run'):
         msg = parsed.get('message', parsed.get('follow_up_question', ''))
         expl = parsed.get('explanation') or ('Needs clarification' if parsed.get('needs_clarification') else '')
         just = parsed.get('tags', [])
+        if parsed.get("needs_clarification"):
+            st.session_state.history.append({
+                "reply": msg,
+                "explanation": expl,
+                "user_input": user_in,
+                "input_type": itype,
+                "tags": tags,
+                "justification": just,
+                "matched_tags": matched_tags,
+                "strategies": strats,
+                "rebuttal": None,
+                "confidence_score": None,
+                "evaluation_justification": None,
+                "suggested_improvements": None,
+                "ultimate_reply": None,
+                "session_id": session_id
+            })
+            log_session(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats,
+                        rating=rating_val, feedback=feedback_txt, session_id=session_id)
+            log_to_firestore(user_input=user_in, input_type=itype, message=msg, explanation=expl,
+                            tags_input=tags, tags_justification=just,
+                            matched_tags=matched_tags, matched_tags_in_strategies=matched_tags,
+                            strategies=strats, rating=rating_val, written_feedback=feedback_txt,
+                            session_id=session_id)
+            st.session_state.run = False
+            st.rerun()
         rebuttal = generate_rebuttal(msg, comment)
         evaluation = evaluate_reply(msg, rebuttal)
-        session_id = st.session_state["session_id"]
+
 
         st.session_state.history.append({
             "reply": msg,
