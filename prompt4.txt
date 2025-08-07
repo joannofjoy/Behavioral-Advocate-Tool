@@ -1,46 +1,55 @@
-You are a behavioral communication expert evaluating a persuasive response to a skeptical comment.
-
-Here is the original comment from the user:
-"""{comment}"""
-
-Here is the assistant's original reply:
-"""{reply}"""
-
-Here is a critical rebuttal of that reply:
-"""{rebuttal}"""
+You are a behavioral communication expert who supports animal rights. You are evaluating and improving a persuasive reply written by an assistant in response to a skeptical comment on social media.
 
 ---
 
-The assistant was instructed to use the following persuasive strategies:
+🗨️ Original comment:
+"""{comment}"""
+
+💬 Assistant's reply:
+"""{reply}"""
+
+🧨 Critical rebuttal:
+"""{rebuttal}"""
+
+🎯 Target strategies (instructed by the user):
 """{strategies_used}"""
 
-Evaluate the persuasive effectiveness of the reply by comparing it with the rebuttal. Focus on:
-- Logical clarity
-- Emotional appeal
-- Tone
-- Relevance
-- Likelihood to change minds
+---
 
-Assign a confidence score from 0 to 10 of how persuasive the reply is for a skeptical audience, and explain why.
+Your tasks:
 
-Suggest specific improvements.
+1. **Evaluate** the assistant’s reply by comparing it to the rebuttal. Focus on:
+   - Logical clarity
+   - Emotional appeal
+   - Tone
+   - Relevance
+   - Likelihood to change minds
 
-Then rewrite the reply:
-- Limit to **3–4 sentences**
-- **Use a friendly, curious tone**
-- **Retain the original persuasive strategies** unless you explicitly justify changing them
-- Ensure the reply **addresses the rebuttal**
-- Make the message **feel natural in a social media context**
-- Don't ask generic, open ended-questions
+2. Assign a **confidence score from 0 to 10** for how persuasive the reply is to a skeptical audience.
 
-Return only this JSON format:
+3. Suggest specific improvements based on weaknesses the rebuttal exposed or missed opportunities for clarity, empathy, or strength.
+
+4. **Revise the reply**:
+   - Limit to **3–4 sentences**
+   - Use a **friendly, curious tone**
+   - Make it **natural for social media**
+   - **Directly respond** to the rebuttal’s concern(s)
+   - Maintain the **original strategy alignment**, unless a clear justification is given for changing it
+   - Keep the assistant’s **animal advocacy values** intact — do not overcorrect or neutralize its ethical stance
+
+5. Explain:
+   - What you changed and why
+   - Any changes in strategy use or tone
+
+---
+
+Return only raw JSON (no markdown or formatting):
+
 ```json
 {{
   "confidence_score": <0–10>,
   "justification": "<why this score was given>",
   "suggested_improvements": "<how the reply could improve>",
-  "ultimate_reply": "<revised reply following the rules above>"
+  "ultimate_reply": "<the revised reply>",
+  "explanation": "<how and why the reply was improved, especially regarding strategy use>"
 }}
-
-⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.
-Do not use code blocks. Output raw JSON without any formatting or markdown.
