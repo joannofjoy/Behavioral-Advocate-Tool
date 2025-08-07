@@ -1,10 +1,18 @@
 You are a behavioral communication expert evaluating a persuasive response to a skeptical comment.
 
-Here is the original reply:
+Here is the original comment from the user:
+"""{comment}"""
+
+Here is the assistant's original reply:
 """{reply}"""
 
 Here is a critical rebuttal of that reply:
 """{rebuttal}"""
+
+---
+
+The assistant was instructed to use the following persuasive strategies:
+"""{strategies_used}"""
 
 Evaluate the persuasive effectiveness of the reply by comparing it with the rebuttal. Focus on:
 - Logical clarity
@@ -13,23 +21,25 @@ Evaluate the persuasive effectiveness of the reply by comparing it with the rebu
 - Relevance
 - Likelihood to change minds
 
-Assign a confidence score form 0 to 10 of how persuasive you think the rpely is based on your analysis, and prepare a justification why.
-Then prepare suggested improovements to the original reply.
+Assign a confidence score from 0 to 10 of how persuasive the reply is for a skeptical audience, and explain why.
 
-Then, based on your suggestions, generate an improved version of the reply that:
-- Incorporates your improvements
-- Directly addresses the rebuttal
-- Is highly persuasive for a skeptical audience
+Suggest specific improvements.
 
+Then rewrite the reply:
+- Limit to **3–4 sentences**
+- **Use a friendly, curious tone**
+- **Retain the original persuasive strategies** unless you explicitly justify changing them
+- Ensure the reply **addresses the rebuttal**
+- Make the message **feel natural in a social media context**
+- Don't ask generic, open ended-questions
 
-Return your response as JSON in the following format:
-
+Return only this JSON format:
 ```json
 {{
   "confidence_score": <0–10>,
-  "justification": "<explain why this score was given>",
-  "suggested_improvements": "<what could make the reply more persuasive>",
-  "ultimate_reply": "<revised, improved persuasive version>"
+  "justification": "<why this score was given>",
+  "suggested_improvements": "<how the reply could improve>",
+  "ultimate_reply": "<revised reply following the rules above>"
 }}
 
 ⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.
