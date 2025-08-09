@@ -1,5 +1,5 @@
 
-![App demo screenshot](images/demo.png)
+![App demo screenshot](images/demo.PNG)
 
 # AI Powered Animal Advocacy Messaging Assistant Based On Behavioral Science
 
