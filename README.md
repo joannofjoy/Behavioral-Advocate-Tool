@@ -1,9 +1,11 @@
 
-# AI Powered Animal Advocacy Messaging Assistant based on Behavioral Science
+![App demo screenshot](images/demo.png)
+
+# AI Powered Animal Advocacy Messaging Assistant Based On Behavioral Science
 
 This tool helps animal rights advocates draft social media comments for better persuasiveness using OpenAI and behavioral science strategies.
 
-This AI-powered tool helps animal advocates respond more effectively in social media discussions, especially when engaging with meat-eaters. Many pro-vegan or animal rights replies come across as moralizing or confrontational, which often triggers defensiveness and fails to shift attitudes. Drawing from behavioral science, strategic communication, and AI tools, this assistant is designed to rewrite or generate replies using persuasive techniques.
+It supports animal advocates in responding more effectively in social media discussions, especially when engaging with meat-eaters. Many pro-vegan or animal rights replies come across as moralizing or confrontational, which often triggers defensiveness and fails to shift attitudes. Drawing from behavioral science, strategic communication, and AI tools, this assistant is designed to rewrite or generate replies using persuasive techniques.
 The tool is intended for both formal advocates working with organizations and "home advocates" - individuals who discuss animal rights or veganism online in their free time and want to communicate more effectively.
 
 ## Features
