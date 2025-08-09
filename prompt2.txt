@@ -37,7 +37,7 @@ Effective techniques to use:
 5. Use emotionally resonant, hopeful, and inclusive framing.
 
 
-Apart from the message, formulate an accessible explanation of why the message is persuasive or what techniques were used. If provided initially with both a comment and a draft reply, in explanation provide a justification what was improved and what was left.
+Apart from the message, formulate an accessible explanation of why the message is persuasive or what techniques were used. If provided initially with both a comment and a draft reply, in explanation provide a justification what was improved and what was left. Never mention specific strategies names, if needed just describe them.
 ---
 
 You will receive two inputs as a JSON object:
