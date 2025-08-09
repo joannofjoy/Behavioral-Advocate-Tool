@@ -8,23 +8,23 @@ The tool is intended for both formal advocates working with organizations and "h
 
 ## Features
 
-- Smart Tag Extraction – Detects the key themes, topics, and emotional tones in any comment to understand the conversation’s core.
+- Smart Tag Extraction - Detects the key themes, topics, and emotional tones in any comment to understand the conversation’s core.
 
-- Strategy Matching with RAG – Uses Retrieval-Augmented Generation to instantly connect your conversation context with a curated library of behavioral science–backed advocacy strategies.
+- Strategy Matching with RAG - Uses Retrieval-Augmented Generation to instantly connect your conversation context with a curated library of behavioral science–backed advocacy strategies.
 
-- Multi-Step Prompt Chaining – Breaks the task into expert stages: tag extraction → strategy selection → persuasive reply → rebuttal → improvement suggestions.
+- Multi-Step Prompt Chaining - Breaks the task into expert stages: tag extraction → strategy selection → persuasive reply → rebuttal → improvement suggestions.
 
-- AI-Optimized Persuasion – Crafts replies using proven psychological principles to avoid defensiveness, build rapport, and encourage openness to animal-friendly choices.
+- AI-Optimized Persuasion - Crafts replies using proven psychological principles to avoid defensiveness, build rapport, and encourage openness to animal-friendly choices.
 
-- Built-In Skeptical Rebuttals – Anticipates pushback by generating strong counter-arguments to your own reply, so you’re ready for any response.
+- Built-In Skeptical Rebuttals - Anticipates pushback by generating strong counter-arguments to your own reply, so you’re ready for any response.
 
-- Feedback-Driven Regeneration – Takes your rating and written feedback to produce a sharper, more targeted reply that better fits your advocacy style.
+- Feedback-Driven Regeneration - Takes your rating and written feedback to produce a sharper, more targeted reply that better fits your advocacy style.
 
-- Cloud-Based Session Logging – Saves every session securely to Firebase Firestore for analysis, refinement, and future improvements.
+- Cloud-Based Session Logging - Saves every session securely to Firebase Firestore for analysis, refinement, and future improvements.
 
-- Clarification Safeguards – Pauses the generation process when input is too vague or off-topic, ensuring only relevant, high-quality outputs.
+- Clarification Safeguards - Pauses the generation process when input is too vague or off-topic, ensuring only relevant, high-quality outputs.
 
-- Prompt Injection Protection – Built-in defenses to detect and block attempts to bypass or override the assistant’s intended purpose.
+- Prompt Injection Protection - Built-in defenses to detect and block attempts to bypass or override the assistant’s intended purpose.
 
 ## What It Does
 
@@ -109,5 +109,5 @@ Joanna A. Mazurek
 
 ## Acknowledgements
 
-Project prepared under the mentorship of **Ghaith Ahmad** [@RainZoneO2](https://github.com/RainZoneO2) for the **Futurekind AI Fellowship (Electric Sheep)**.
+Project prepared under the mentorship of [**Ghaith Ahmad** (@RainZoneO2)](https://github.com/RainZoneO2) for the **Futurekind AI Fellowship (Electric Sheep)**.
 
