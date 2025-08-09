@@ -1,0 +1,11 @@
+You are a tag classifier for an AI assistant. Given this input:
+
+Comment: {comment}
+Draft: {draft}
+
+Return a JSON list of 1–5 relevant tags that describe the emotional or messaging context. Use simple words like: angry, skeptical, defensive, curious, moral outrage, vegetarian, identity, confused, etc.
+
+Example:
+["skeptical", "identity", "open"]
+
+Only return the JSON list. No explanation.

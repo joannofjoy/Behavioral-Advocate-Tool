@@ -1,54 +1,43 @@
-import streamlit as st
-import openai
-from dotenv import load_dotenv
-import os
-import json
-import sqlite3
-import csv
-import uuid
-import datetime
-import firebase_admin
-from firebase_admin import credentials, firestore
+import streamlit as st  # Streamlit for UI
+import openai            # OpenAI client library
+from dotenv import load_dotenv  # Load .env files
+import os                # OS utilities (env vars, file paths)
+import json              # JSON encoding/decoding
+import sqlite3           # SQLite for local logging
+import csv               # CSV writing for backup logs
+import uuid              # Generate unique IDs
+import datetime          # Timestamps
+import firebase_admin    # Firebase Admin SDK
+from firebase_admin import credentials, firestore  # Firestore client
+import re                # Regular expressions for parsing
 
+if "session_id" not in st.session_state:
+    st.session_state["session_id"] = str(uuid.uuid4())
+if "history" not in st.session_state:
+    st.session_state.history = []  # list of reply blocks
 
-
-
-# Load environment variables from .env (only works locally)
-# Load environment variables from .env (only works locally)
+# Load environment variables
 load_dotenv()
 
-# ------------------- OPENAI API KEY -------------------
-
-openai_api_key = os.getenv("api_key")  # Default from .env
-
+# OpenAI API Key setup
+openai_api_key = os.getenv("api_key")
 try:
-    # Check if Streamlit secrets is available and includes OpenAI key
     openai_api_key = st.secrets["openai"]["api_key"]
-    print("🔐 Loaded OpenAI key from Streamlit secrets")
 except Exception:
-    print("🔐 Loaded OpenAI key from .env")
-
-# ------------------- OPENAI CLIENT -------------------
-
+    pass
 client = openai.OpenAI(api_key=openai_api_key)
 
-# ------------------- FIREBASE INITIALIZATION -------------------
-
+# Firebase initialization
 db = None
-
 try:
     firebase_config = None
     try:
         firebase_config = dict(st.secrets["firebase"])
-        # Fix the private_key field by replacing \\n with \n
         firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
-        print("📦 Firebase config loaded from Streamlit secrets")
     except Exception:
         if os.path.exists("firebase_key.json"):
-            with open("firebase_key.json", "r") as f:
+            with open("firebase_key.json") as f:
                 firebase_config = json.load(f)
-            print("📦 Firebase config loaded from firebase_key.json")
-
     if firebase_config:
         if not firebase_admin._apps:
             cred = credentials.Certificate(firebase_config)
@@ -56,244 +45,333 @@ try:
         db = firestore.client()
         st.session_state.firebase_app = True
 except Exception as e:
-    st.warning(f"⚠️ Firebase initialization failed.")
+    st.warning(f"⚠️ Firebase init failed: {e}")
 
+# Load prompt
+def load_prompt(fn):
+    with open(fn, encoding="utf-8") as f:
+        return f.read()
 
-
-def log_to_firestore(user_input, input_type, message, explanation):
-    if not db:
-        st.warning("❌ Firestore is not initialized.")
-        return
-
-    doc_id = str(uuid.uuid4())
-    timestamp = datetime.datetime.utcnow().isoformat()
-
-    data = {
-        "timestamp": timestamp,
-        "user_input": user_input,
-        "input_type": input_type,
-        "llm_message": message,
-        "llm_explanation": explanation,
-    }
-
-
-
+def load_strategies(path="strategies.json"):
     try:
-        db.collection("session_logs").document(doc_id).set(data)
-       
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        st.warning("⚠️ Could not load strategies.json")
+        return []
+
+strategies = load_strategies()
+
+def filter_strategies_by_tags(all_strats, tags):
+    matched = [s for s in all_strats if any(t in s.get("tags", []) for t in tags)]
+    matched_tags = sorted({t for s in matched for t in s.get("tags", []) if t in tags})
+    return matched, matched_tags
+
+def extract_tags(comment, draft):
+    prompt = load_prompt("prompt1.txt").format(comment=comment or "N/A", draft=draft or "N/A")
+    try:
+        r = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=100
+        )
+        return json.loads(r.choices[0].message.content.strip())
+    except Exception:
+        st.warning("⚠️ Tag extraction failed.")
+        return []
+
+def generate_rebuttal(reply: str, comment: str, model="gpt-4o", temperature=0.7) -> str:
+    try:
+        rebuttal_prompt = load_prompt("prompt3.txt").format(reply=reply, comment=comment)
+        r = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a skeptical, articulate critic of vegan arguments, tasked with challenging the assistant’s message."},
+                {"role": "user", "content": rebuttal_prompt}
+            ],
+            temperature=temperature,
+            max_tokens=400
+        )
+        txt = r.choices[0].message.content.strip()
+
+        # Clean up code block formatting if GPT adds it
+        if txt.startswith("```json") or txt.startswith("```"):
+            txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.MULTILINE).strip()
+
+        parsed = json.loads(re.search(r"\{.*\}", txt, re.DOTALL).group(0))
+        return parsed.get("rebuttal", "[Rebuttal missing]")
     except Exception as e:
-        st.warning(f"❌ Firestore logging failed.")
+        st.warning(f"⚠️ Rebuttal generation failed: {e}")
+        return ""
 
 
-# Set up local SQLite database
+# Logging setup
 conn = sqlite3.connect('session_logs.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''
-    CREATE TABLE IF NOT EXISTS logs (
-        id TEXT PRIMARY KEY,
-        timestamp TEXT,
-        user_input TEXT,
-        input_type TEXT,
-        llm_message TEXT,
-        llm_explanation TEXT
-    )
-''')
+CREATE TABLE IF NOT EXISTS logs (
+  id TEXT PRIMARY KEY,
+  version INTEGER,
+  timestamp TEXT,
+  user_input TEXT,
+  input_type TEXT,
+  llm_message TEXT,
+  llm_explanation TEXT,
+  tags_input TEXT,
+  tags_justification TEXT,
+  matched_tags TEXT,
+  matched_tags_in_strategies TEXT,
+  strategies TEXT,
+  rating TEXT,
+  written_feedback TEXT,
+  session_id TEXT
+)''')
 conn.commit()
 
-def log_session(user_input, input_type, message, explanation):
+def log_session(user_input, input_type, message, explanation,
+                tags_input, tags_justification,
+                matched_tags, matched_tags_in_strategies,
+                strategies, rating=None, feedback=None, session_id=None):
     entry_id = str(uuid.uuid4())
-    timestamp = str(datetime.datetime.utcnow())
-
-    # Log to SQLite
-    c.execute('INSERT INTO logs VALUES (?, ?, ?, ?, ?, ?)', 
-              (entry_id, timestamp, user_input, input_type, message, explanation))
+    ts = datetime.datetime.utcnow().isoformat()
+    c.execute(
+        'INSERT INTO logs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        (entry_id, len(st.session_state.history), ts, user_input, input_type, message, explanation,
+         json.dumps(tags_input), json.dumps(tags_justification),
+         json.dumps(matched_tags), json.dumps(matched_tags_in_strategies),
+         json.dumps([s['title'] for s in strategies]),
+         str(rating) if rating is not None else None,
+         feedback, session_id)
+    )
     conn.commit()
+    try:
+        with open('session_logs.csv', 'a', newline='', encoding='utf-8') as f:
+            csv.writer(f).writerow([
+                ts, entry_id, len(st.session_state.history), user_input, input_type, message, explanation,
+                json.dumps(tags_input), json.dumps(tags_justification),
+                json.dumps(matched_tags), json.dumps(matched_tags_in_strategies),
+                json.dumps([s['title'] for s in strategies]), rating, feedback, session_id
+            ])
+    except PermissionError:
+        st.warning("⚠️ Could not write to CSV. File may be open or locked.")
 
-    # Also log to CSV
-    with open('session_logs.csv', 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow([timestamp, entry_id, user_input, input_type, message, explanation])
+def log_to_firestore(user_input, input_type, message, explanation,
+                     tags_input, tags_justification,
+                     matched_tags, matched_tags_in_strategies,
+                     strategies, rating=None, written_feedback=None, session_id=None):
+    if not db:
+        return
+    doc = {
+        'version': len(st.session_state.history),
+        'timestamp': datetime.datetime.utcnow().isoformat(),
+        'user_input': user_input,
+        'input_type': input_type,
+        'llm_message': message,
+        'llm_explanation': explanation,
+        'tags_input': tags_input,
+        'tags_justification': tags_justification,
+        'matched_tags': matched_tags,
+        'matched_tags_in_strategies': matched_tags_in_strategies,
+        'strategies': [s['title'] for s in strategies],
+        'rating': rating,
+        'written_feedback': written_feedback,
+        'session_id': session_id
+    }
+    try:
+        db.collection('session_logs').document(str(uuid.uuid4())).set(doc)
+    except Exception:
+        st.warning("❌ Firestore log failed.")
 
-st.title("Behavioral Science Based Advocate Assistant")
+# ------------------- UI -------------------
+st.markdown("""
+    <style>
+    .block-container { padding-top: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .reply-line { font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .reply-label { font-weight: bold; margin-right: 0.25rem; }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("## Animal Advocacy Messaging Assistant")
 st.write("""This tool helps improve social media comments for better persuasiveness using behavioral science.""")
 
-with st.expander("Optional: Include the comment you are replying to or context"):
-    comment_input = st.text_area(
-        "What did the other person say? Who are they? Any additional context?",
-        placeholder="Paste the comment here...",
-        key="comment_input"
-    )
+comment = st.text_area("What did the other person say? Who are they? Any additional context?",
+    key='comment_input',
+    placeholder="Paste the other person's comment and add any additional context here...")
 
-draft_input = st.text_area(
-    "What do you want to say in reply?",
-    placeholder="Write your reply draft here, or leave blank for GPT to generate it...",
-    key="draft_input"
-)
+with st.expander("Optional: Your draft reply"):
+    draft = st.text_area("", key='draft_input', placeholder="Write your reply draft here, or leave blank for the assistant to generate it...", label_visibility="collapsed")
 
-if st.button("Generate"):
-    if not comment_input.strip() and not draft_input.strip():
-        st.warning("Please enter a comment, a draft reply, or both.")
+if st.button("Generate a reply"):
+    if not comment.strip() and not draft.strip():
+        st.warning("Enter context or draft.")
     else:
-        with st.spinner("Thinking..."):
-            try:
-                # Send to GPT
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": """
-You are a strategic animal rights advocate specializing in rewriting and crafting persuasive online replies, posts, and comments. Your goal is to maximize behavioral impact using research from behavioral science, Faunalytics, and the Vegan Advocacy Communication Hacks.
+        st.session_state.run = True
+        st.rerun()
 
-Your focus is on improving:
-- Tone
-- Structure and clarity
-- Framing
-- Emotional appeal
-- Strength of call-to-action
+if st.session_state.get('run'):
+    with st.spinner("Thinking..."):
+        session_id = st.session_state["session_id"]
+        tags = extract_tags(comment.strip(), draft.strip())
+        strats, matched_tags = filter_strategies_by_tags(strategies, tags)
+        strat_block = "\n".join(f"- {s['title']}: {s['description']}" for s in strats) or "No strategies matched."
 
-Speak in a warm, relatable, and confident tone—like a thoughtful friend who went vegan for animals and wants to help others understand why it matters. Avoid sounding robotic, generic, overly academic, or confrontational.
+        base_prompt = load_prompt("prompt2.txt").format(formatted_strategies=strat_block)
 
-Language rules:
-- Avoid em dashes entirely; prefer commas or hyphens when needed.
-- Use simple, conversational English that’s still intelligent and persuasive.
-- Keep responses short: 2–4 sentences to ensure clarity and emotional impact in fast-paced online discussions.
+        feedback_txt = st.session_state.get('feedback', '').strip()
+        rating_val = st.session_state.get('rating')
 
-Persuasion strategies:
-- Adjust arguments based on the audience. Use emotional appeals for empathetic users, health/environmental framing for skeptics, and inclusive language to reduce resistance.
-- Avoid moral absolutes or information overload. Encourage “as vegan as possible” thinking and low-pressure asks like “try one plant-based meal.”
-- Avoid sarcasm, confrontation, or anything that provokes defensiveness.
-- Promote sustainable advocacy and help users avoid burnout.
-- Stick to the facts. Clarify misinformation or health trends that are unhealthy.
-- Never endorse or normalize animal use.
-- Never validate meat-eating, even with ex-vegans. 
-- When talking about ex-vegans, remind about animal suffering, values, and the role of getting adequate support and nutrition information when going vegan.
+        if feedback_txt or rating_val is not None:
+            feedback_block = (
+                f"You just received the following feedback on your previous reply:\n"
+                f"- Written feedback: \"{feedback_txt}\"\n"
+                f"- Rating: {rating_val}/5\n\n"
+                f"Revise your reply accordingly before applying the rest of the instructions. You should still ask for clarifictaion if the input is not relate dto animal advocacy. \n"
+                f"If the rating is under 4, that means the user wasn’t fully satisfied — make sure to address their concerns. The lower the rating, the more you should change the reply. \n"
+                f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. If you did not include any part of the feedback, explain why. \n"
+            )
 
-When correcting misinformation (e.g. “vegan = unhealthy” or “high-carb = bad”), be respectful and clear. Use facts confidently, not aggressively. Refer to reputable sources (like major health organizations) when needed. Always prioritize clarity and empathy.
+            prompt = feedback_block + "\n" + base_prompt
+        else:
+            prompt = base_prompt
 
-Effective techniques to use:
-1. Acknowledge the other person’s perspective: “I used to love cheese too…”
-2. Briefly share your personal story: “I became vegan after a lifetime of eating meat…”
-3. With sceptics, invite allyship, not conversion: praise small steps like Meatless Mondays or signing petitions.
-4. Encourage identity alignment: help others see how their values already match vegan ethics.
-5. Use emotionally resonant, hopeful, and inclusive framing.
+       # st.markdown("#### Prompt passed to GPT")
+       # st.code(prompt)
 
----
+        r = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": json.dumps({'comment': comment, 'draft_reply': draft})}
+            ],
+            temperature=0.7,
+            max_tokens=400
+        )
+        txt = r.choices[0].message.content
+        if txt.startswith("```json"):
+            txt = txt.strip('```json').strip('```')
+        parsed = json.loads(re.search(r"\{.*\}", txt, re.DOTALL).group(0))
 
-You will receive two inputs as a JSON object:
+        user_in = json.dumps({'comment': comment, 'draft_reply': draft})
+        itype = parsed.get('input_type', 'unknown')
+        msg = parsed.get('message', parsed.get('follow_up_question', ''))
+        expl = parsed.get('explanation') or ('Needs clarification' if parsed.get('needs_clarification') else '')
+        just = parsed.get('tags', [])
+        if parsed.get("needs_clarification"):
+            st.session_state.history.append({
+                "reply": msg,
+                "explanation": expl,
+                "user_input": user_in,
+                "input_type": itype,
+                "tags": tags,
+                "justification": just,
+                "matched_tags": matched_tags,
+                "strategies": strats,
+                "rebuttal": None,
+                "confidence_score": None,
+                "evaluation_justification": None,
+                "suggested_improvements": None,
+                "ultimate_reply": None,
+                "session_id": session_id
+            })
+            log_session(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats,
+                        rating=rating_val, feedback=feedback_txt, session_id=session_id)
+            log_to_firestore(user_input=user_in, input_type=itype, message=msg, explanation=expl,
+                            tags_input=tags, tags_justification=just,
+                            matched_tags=matched_tags, matched_tags_in_strategies=matched_tags,
+                            strategies=strats, rating=rating_val, written_feedback=feedback_txt,
+                            session_id=session_id)
+            st.session_state.run = False
+            st.rerun()
+        rebuttal = generate_rebuttal(msg, comment)
 
-- comment: what someone else said (may be empty)
-- draft_reply: a draft message or reply from the user (may be empty)
--If both are empty, return:
-```json
-{ "follow_up_question": "Please provide either a comment or a draft reply.", "needs_clarification": true }
-- If both are provided, improve the draft in the context of the comment to make it more persuasive using behavioral science.
-- If draft_reply is provided. It is not a comment to respond to. Improve it using behavioral science. If it is vague, ask for clarification.
-- If only comment is provided, generate a persuasive reply from scratch.
 
 
+        st.session_state.history.append({
+            "reply": msg,
+            "explanation": expl,
+            "user_input": user_in,
+            "input_type": itype,
+            "tags": tags,
+            "justification": just,
+            "matched_tags": matched_tags,
+            "strategies": strats,
+            "rebuttal": rebuttal,
+            "session_id": session_id
+        })
+        if len(st.session_state.history) > 1:
+            st.session_state.history_index = len(st.session_state.history) - 2
 
-If clarification is needed:
+        log_session(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats,
+                    rating=rating_val, feedback=feedback_txt, session_id=session_id)
+        log_to_firestore(user_input=user_in, input_type=itype, message=msg, explanation=expl,
+                         tags_input=tags, tags_justification=just,
+                         matched_tags=matched_tags, matched_tags_in_strategies=matched_tags,
+                         strategies=strats, rating=rating_val, written_feedback=feedback_txt,
+                         session_id=session_id)
 
-```json
-{
-  "follow_up_question": "string",  // ask a helpful clarifying question
-  "needs_clarification": true
-}
-Always provide final output in this format:
+        st.session_state.run = False
+        st.session_state.rating = None
+        st.session_state.feedback = None
 
-```json
-{
-  "message": "...",
-  "explanation": "...",
-  "input_type": "draft_reply" or "comment" or "both",
-  "needs_clarification": false
-}
-```
-⚠️ Output only valid JSON. Do not include any extra explanation or formatting outside the JSON.
-                       """
-                        },
-                        {
-                            "role": "user",
-                            "content": json.dumps({
-                                "comment": comment_input.strip(),
-                                "draft_reply": draft_input.strip()
-                            })
-                        }
-                    ],
-                    temperature=0.7,
-                    max_tokens=400
-                )
+if st.session_state.history:
 
-                # Raw response
-                content = response.choices[0].message.content.strip()
-                
+    if len(st.session_state.history) == 1:
+        latest = st.session_state.history[-1]
+        st.markdown(f"<div class='reply-line'><span class='reply-label'>Reply:</span>{latest['reply']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>", unsafe_allow_html=True)
+        if latest.get("rebuttal"):
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{latest['rebuttal']}</div>", unsafe_allow_html=True)
+ 
 
-                # Try parsing JSON safely
-                try:
-                    # Remove ```json if it exists
-                    if content.startswith("```json"):
-                        content = content.replace("```json", "").replace("```", "").strip()
+    else:
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.markdown("<div style='text-align:center; font-weight:bold;'>Latest Version</div><br>", unsafe_allow_html=True)
+            latest = st.session_state.history[-1]
+            latest = st.session_state.history[-1]
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Latest Reply:</span>{latest['reply']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>", unsafe_allow_html=True)
+            if latest.get("rebuttal"):
+                st.markdown(f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{latest['rebuttal']}</div>", unsafe_allow_html=True)
+ 
+        with col2:
+            total_versions = len(st.session_state.history) - 1  # Exclude latest
 
-                    # Regex fallback
-                    import re
-                    match = re.search(r"\{.*\}", content, re.DOTALL)
-                    if match:
-                        json_str = match.group(0)
-                    else:
-                        raise json.JSONDecodeError("No JSON object found", content, 0)
+            if total_versions > 0:
+                if "history_index" not in st.session_state:
+                    st.session_state.history_index = 0
 
-                    parsed = json.loads(json_str)
-  
+                col_l, col_m, col_r = st.columns([1, 3.5, 1])
+                with col_l:
+                    st.button(" ◀ ", key="prev_btn", on_click=lambda: st.session_state.update({"history_index": max(0, st.session_state.history_index - 1)}),  use_container_width=True)
+                with col_m:
+                    st.markdown("<div style='text-align:center; font-weight:bold;'>Previous Versions</div>", unsafe_allow_html=True)
+                with col_r:
+                    st.button(" ▶ ", key="next_btn", on_click=lambda: st.session_state.update({"history_index": min(total_versions - 1, st.session_state.history_index + 1)}),  use_container_width=True)
 
-                    user_input = {
-                        "comment": comment_input.strip(),
-                        "draft_reply": draft_input.strip()
-                    }
+                selected = st.session_state.history[st.session_state.history_index]
+                st.markdown(f"<div class='reply-line'><span class='reply-label'>Reply Version {st.session_state.history_index+1}:</span>{selected['reply']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{selected['explanation']}</div>", unsafe_allow_html=True)
+                if selected.get("rebuttal"):
+                    st.markdown(f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{selected['rebuttal']}</div>", unsafe_allow_html=True)
+            else:
+                st.info("No previous versions yet.")
 
-                    input_type = parsed.get("input_type", "unknown")
-                    message = parsed.get("message") or parsed.get("follow_up_question", "⚠️ No message or question received.")
-                    explanation = parsed.get("explanation") or ("Needs clarification" if parsed.get("needs_clarification") else "⚠️ No explanation provided.")
 
-                    # UI display
-                    if parsed.get("needs_clarification"):
-                        st.info("The assistant needs clarification:")
-                        st.markdown(f"**Question:** {message}")
-                    else:
-                        if input_type == "draft_reply":
-                            st.success("Here’s your improved reply:")
-                        elif input_type == "comment":
-                            st.success("Here’s a suggested response to the comment:")
-                        else:
-                            st.success("Here’s the generated output:")
+    st.markdown("---")
+    st.markdown("### Feedback")
+    rate = st.slider('How do you like the most recent response?', 1, 5, 3, key='rating_input')
+    fb = st.text_area('Optional feedback (used only if you regenerate):', key='fb_input')
+    st.session_state.rating = rate
+    st.session_state.feedback = fb
 
-                        st.markdown(f"**Reply:** {message}")
-                        st.markdown(f"**Explanation:** {explanation}")
+    if st.button("🔁 Regenerate with feedback"):
+        st.session_state.run = True
+        st.rerun()
 
-                    # Save all sessions, including clarification cases
-                    log_session(
-                        user_input=json.dumps(user_input),
-                        input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
-                        message=message,
-                        explanation=explanation
-                    )
-                    if db:
-                        try:
-                            log_to_firestore(
-                                user_input=json.dumps(user_input),
-                                input_type=input_type + ("_clarification" if parsed.get("needs_clarification") else ""),
-                                message=message,
-                                explanation=explanation
-                            )
-                        except Exception:
-                            st.warning("⚠️ Could not log to Firebase.")
-
-                    st.caption(f"🔍 Detected input type: {input_type}")
-
-                except json.JSONDecodeError:
-                    st.error("❌ The AI response was not valid JSON.")
-                    st.text_area("🔍 Full response from GPT:", value=content, height=150)
-
-            except Exception as e:
-                st.error("🚨 An unexpected error occurred.")
-                st.exception(e)
+    if st.button("🆕 New session"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.experimental_rerun()
