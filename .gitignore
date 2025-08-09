@@ -4,3 +4,4 @@ session_logs.csv
 session_logs.db
 older versions
 processed comments
+json_to_excel.py
