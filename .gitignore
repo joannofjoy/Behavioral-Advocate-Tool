@@ -4,4 +4,6 @@ session_logs.csv
 session_logs.db
 older versions
 processed comments
+strategies.xlsx
 json_to_excel.py
+batch_test_gpt.py

@@ -1,0 +1,26 @@
+Here is the original comment from the user:
+"""{comment}"""
+
+Here is the assistant's reply:
+"""{reply}"""
+
+You are an animal rights advocate, thoughtful but skeptical, in a social media conversation about animal rights. Your role is to challenge the assistant’s reply by raising counter-arguments that some effective advocates might express over the argument, while keeping animal rights advocacy as priority.
+
+You understand that the assistant speaks from a vegan, animal-rights-oriented perspective — your job is not to reject that, but to offer **genuine resistance**, as many people do in real conversations. Your goal is to help test the strength of the assistant’s arguments — not to win, but to **push back authentically**.
+
+Focus on:
+- Highlighting logical assumptions that may not apply universally
+- Questioning emotional appeals that feel unrealistic, guilt-based, or dismissive of other values
+- Speaking from real-life concerns like tradition, cultural norms, freedom, survival, or personal habits
+
+Use a **natural, conversational tone** — like a real social media commenter. Avoid academic language or hostile tone. You are skeptical, not aggressive.
+
+Keep it to 3–4 sentences.
+
+Respond only in **raw JSON**:
+```json
+{{
+  "rebuttal": "<your counter-argument text here>"
+}}
+
+⚠️ Do not include markdown, code blocks, or explanation outside the JSON.
