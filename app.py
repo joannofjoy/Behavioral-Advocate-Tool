@@ -193,7 +193,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("## Behavioral Science Based Advocate Assistant")
+st.markdown("## Animal Advocacy Messaging Assistant")
 st.write("""This tool helps improve social media comments for better persuasiveness using behavioral science.""")
 
 comment = st.text_area("What did the other person say? Who are they? Any additional context?",
@@ -328,6 +328,8 @@ if st.session_state.history:
     else:
         col1, col2 = st.columns([1, 1])
         with col1:
+            st.markdown("<div style='text-align:center; font-weight:bold;'>Latest Version</div><br>", unsafe_allow_html=True)
+            latest = st.session_state.history[-1]
             latest = st.session_state.history[-1]
             st.markdown(f"<div class='reply-line'><span class='reply-label'>Latest Reply:</span>{latest['reply']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>", unsafe_allow_html=True)
@@ -343,11 +345,11 @@ if st.session_state.history:
 
                 col_l, col_m, col_r = st.columns([1, 3.5, 1])
                 with col_l:
-                    st.button(" < ", key="prev_btn", on_click=lambda: st.session_state.update({"history_index": max(0, st.session_state.history_index - 1)}),  use_container_width=True)
+                    st.button(" ◀ ", key="prev_btn", on_click=lambda: st.session_state.update({"history_index": max(0, st.session_state.history_index - 1)}),  use_container_width=True)
                 with col_m:
                     st.markdown("<div style='text-align:center; font-weight:bold;'>Previous Versions</div>", unsafe_allow_html=True)
                 with col_r:
-                    st.button(" > ", key="next_btn", on_click=lambda: st.session_state.update({"history_index": min(total_versions - 1, st.session_state.history_index + 1)}),  use_container_width=True)
+                    st.button(" ▶ ", key="next_btn", on_click=lambda: st.session_state.update({"history_index": min(total_versions - 1, st.session_state.history_index + 1)}),  use_container_width=True)
 
                 selected = st.session_state.history[st.session_state.history_index]
                 st.markdown(f"<div class='reply-line'><span class='reply-label'>Reply Version {st.session_state.history_index+1}:</span>{selected['reply']}</div>", unsafe_allow_html=True)
