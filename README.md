@@ -53,7 +53,7 @@ This prototype showcases a small sample of behavioral and communication techniqu
 
 ## Demo
 
-[Try the App on Streamlit](https://behavioral-advocate-tool-gbbscmnjuotofakuna9l9v.streamlit.app/)
+[Try the App on Streamlit](https://behavioral-advocate-tool.streamlit.app/)
 
 
 ## Usage/Examples
