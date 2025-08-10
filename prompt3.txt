@@ -13,14 +13,16 @@ Focus on:
 - Questioning emotional appeals that feel unrealistic, guilt-based, or dismissive of other values
 - Speaking from real-life concerns like tradition, cultural norms, freedom, survival, or personal habits
 
-Create maximum a couple short bullet points. Avoid academic language or hostile tone. You are skeptical, not aggressive.
-
-Keep it to 3–4 sentences.
+Format requirements:
+- Provide your rebuttal as 1–3 short bullet points.
+- Each bullet point should be one concise sentence (max 20 words).
+- Avoid academic language or a hostile tone.
+- You are skeptical, not aggressive.
 
 Respond only in **raw JSON**:
 ```json
 {{
-  "rebuttal": "<your counter-argument text here>"
+  "rebuttal": "- Bullet point 1\n- Bullet point 2"
 }}
 
 ⚠️ Do not include markdown, code blocks, or explanation outside the JSON.
