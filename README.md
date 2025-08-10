@@ -2,13 +2,31 @@
 ![App demo screenshot](images/demo.PNG)
 
 # AI Powered Animal Advocacy Messaging Assistant Based On Behavioral Science
-Draft persuasive social media replies that change minds, not start fights.
+*Draft persuasive social media replies that change minds, not start fights.*
 
 This tool helps animal rights advocates craft more persuasive social media comments using OpenAI and behavioral science strategies. It supports animal advocates in responding more effectively in online discussions, especially when engaging with meat-eaters.
 
 Too often, pro-vegan or animal rights comments come across as moralizing or confrontational, which can trigger defensiveness and shut down conversation, instead of shifting attitudes. This assistant draws from behavioral science, strategic communication, and AI tools to rewrite or generate replies that build rapport, reduce resistance, and inspire change.
 
 The tool is intended for both formal advocates working with organizations and "home advocates" - individuals who discuss animal rights or veganism online in their free time and want to communicate more effectively, in ways that connect, not divide.
+
+## Why This Matters
+
+In the age of AI, industries that profit from animal exploitation are already using advanced tools to shape public opinion at scale. If advocates fail to adapt, they risk falling behind in the conversations that shape hearts and minds.
+
+This tool helps animal advocates stay effective by combining the psychology of persuasion with AI’s ability to analyze, tailor, and scale messages - turning online exchanges into opportunities for genuine mindset shifts.
+
+A major challenge in animal advocacy is that even the most well-intentioned messages often trigger defensiveness rather than reflection. Research shows that people are more open to plant-based change when conversations feel respectful, non-judgmental, and achievable - an idea that initially inspired this tool through the work of Tobias Leenaert. Meeting people where they are builds more openness than all-or-nothing demands, especially when discussions touch deeply held beliefs, traditions, and identities.
+
+
+## What This Tool Does
+
+- Takes user input - comments that need a reply to and/or a draft reply from the user
+- Extracts tags from input and matches relevant advocacy strategies
+- Generates persuasive responses
+- Generates rebuttals and evaluates persuasiveness
+- Accepts feedback and allows regeneration based on feedback
+- Logs sessions for feedback and improvement 
 
 ## Features
 
@@ -30,16 +48,9 @@ The tool is intended for both formal advocates working with organizations and "h
 
 - **Prompt Injection Protection** - Built-in defenses to detect and block attempts to bypass or override the assistant’s intended purpose.
 
-## What It Does
+The behavioral techniques used in this tool come from various sources, including Faunalytics’ research library and the Center for Effective Vegan Advocacy (CEVA), alongside other established communication frameworks. 
+This prototype showcases a small sample of behavioral and communication techniques. The pool of techniques will be expanded upon with future development.
 
-- Takes user input - comments that need a reply to and/or a draft reply from the user
-- Extracts tags from input and matches relevant advocacy strategies
-- Generates persuasive responses
-- Generates rebuttals and evaluates persuasiveness
-- Accepts feedback and allows regeneration based on feedback
-- Logs sessions to Firebase for feedback and improvement 
-
- 
 ## Demo
 
 [Try the App on Streamlit](https://behavioral-advocate-tool-gbbscmnjuotofakuna9l9v.streamlit.app/)
@@ -48,7 +59,7 @@ The tool is intended for both formal advocates working with organizations and "h
 ## Usage/Examples
 
 1. Paste a social media comment related to animal rights that you want to respond to and add any additional context.
-2. Optionally, write your draft reply.
+2. Optionally, write your own draft reply.
 3. The assistant will:
    - Generate a persuasive response using behavioral strategies.
    - Explain why the reply is persuasive.

@@ -151,9 +151,7 @@ def log_to_firestore(
         'ultimate_reply': ultimate_reply,
     }
     try:
-        # Prefer hierarchical path for easy querying:
-        db.collection('sessions').document(str(session_id)) \
-          .collection('versions').document(str(version)).set(doc)
+        db.collection('session_logs').document(str(uuid.uuid4())).set(doc)
     except Exception as e:
         st.warning(f"❌ Firestore log failed: {e}")
 
