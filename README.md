@@ -2,35 +2,37 @@
 ![App demo screenshot](images/demo.PNG)
 
 # AI Powered Animal Advocacy Messaging Assistant Based On Behavioral Science
+Draft persuasive social media replies that change minds, not start fights.
 
-This tool helps animal rights advocates draft social media comments for better persuasiveness using OpenAI and behavioral science strategies.
+This tool helps animal rights advocates craft more persuasive social media comments using OpenAI and behavioral science strategies. It supports animal advocates in responding more effectively in online discussions, especially when engaging with meat-eaters.
 
-It supports animal advocates in responding more effectively in social media discussions, especially when engaging with meat-eaters. Many pro-vegan or animal rights replies come across as moralizing or confrontational, which often triggers defensiveness and fails to shift attitudes. Drawing from behavioral science, strategic communication, and AI tools, this assistant is designed to rewrite or generate replies using persuasive techniques.
-The tool is intended for both formal advocates working with organizations and "home advocates" - individuals who discuss animal rights or veganism online in their free time and want to communicate more effectively.
+Too often, pro-vegan or animal rights comments come across as moralizing or confrontational, which can trigger defensiveness and shut down conversation, instead of shifting attitudes. This assistant draws from behavioral science, strategic communication, and AI tools to rewrite or generate replies that build rapport, reduce resistance, and inspire change.
+
+The tool is intended for both formal advocates working with organizations and "home advocates" - individuals who discuss animal rights or veganism online in their free time and want to communicate more effectively, in ways that connect, not divide.
 
 ## Features
 
-- Smart Tag Extraction - Detects the key themes, topics, and emotional tones in any comment to understand the conversation’s core.
+- **Smart Tag Extraction** - Detects the key themes, topics, and emotional tones in any comment to understand the conversation’s core.
 
-- Strategy Matching with RAG - Uses Retrieval-Augmented Generation to instantly connect your conversation context with a curated library of behavioral science–backed advocacy strategies.
+- **Strategy Matching with RAG** - Uses Retrieval-Augmented Generation to instantly connect your conversation context with a curated library of behavioral science–backed advocacy strategies.
 
-- Multi-Step Prompt Chaining - Breaks the task into expert stages: tag extraction → strategy selection → persuasive reply → rebuttal → improvement suggestions.
+- **Multi-Step Prompt Chaining** - Breaks the task into expert stages: tag extraction → strategy selection → persuasive reply → rebuttal → improvement suggestions.
 
-- AI-Optimized Persuasion - Crafts replies using proven psychological principles to avoid defensiveness, build rapport, and encourage openness to animal-friendly choices.
+- **AI-Optimized Persuasion** - Crafts replies using proven psychological principles to avoid defensiveness, build rapport, and encourage openness to animal-friendly choices.
 
-- Built-In Skeptical Rebuttals - Anticipates pushback by generating strong counter-arguments to your own reply, so you’re ready for any response.
+- **Built-In Skeptical Rebuttals** - Anticipates pushback by generating strong counter-arguments to your own reply, so you’re ready for any response.
 
-- Feedback-Driven Regeneration - Takes your rating and written feedback to produce a sharper, more targeted reply that better fits your advocacy style.
+- **Feedback-Driven Regeneration** - Takes your rating and written feedback to produce a sharper, more targeted reply that better fits your advocacy style.
 
-- Cloud-Based Session Logging - Saves every session securely to Firebase Firestore for analysis, refinement, and future improvements.
+- **Cloud-Based Session Logging** - Saves every session securely to Firebase Firestore for analysis, refinement, and future improvements.
 
-- Clarification Safeguards - Pauses the generation process when input is too vague or off-topic, ensuring only relevant, high-quality outputs.
+- **Clarification Safeguards** - Pauses generation when input is too vague or off-topic, ensuring only relevant, high-quality outputs.
 
-- Prompt Injection Protection - Built-in defenses to detect and block attempts to bypass or override the assistant’s intended purpose.
+- **Prompt Injection Protection** - Built-in defenses to detect and block attempts to bypass or override the assistant’s intended purpose.
 
 ## What It Does
 
-- Takes user input - comments that needs a reply to and/or a draft reply from the user
+- Takes user input - comments that need a reply to and/or a draft reply from the user
 - Extracts tags from input and matches relevant advocacy strategies
 - Generates persuasive responses
 - Generates rebuttals and evaluates persuasiveness
@@ -98,6 +100,7 @@ Attempts to:
 
 ## License
 
+All rights reserved. 
 This project is provided for educational and showcase purposes only.  
 You may not reuse, modify, or distribute any part of this code or content without explicit permission.
 
