@@ -3,8 +3,6 @@ import openai            # OpenAI client library
 from dotenv import load_dotenv  # Load .env files
 import os                # OS utilities (env vars, file paths)
 import json              # JSON encoding/decoding
-import sqlite3           # SQLite for local logging
-import csv               # CSV writing for backup logs
 import uuid              # Generate unique IDs
 import datetime          # Timestamps
 import firebase_admin    # Firebase Admin SDK
@@ -107,81 +105,57 @@ def generate_rebuttal(reply: str, comment: str, model="gpt-4o", temperature=0.7)
 
 
 # Logging setup
-conn = sqlite3.connect('session_logs.db', check_same_thread=False)
-c = conn.cursor()
-c.execute('''
-CREATE TABLE IF NOT EXISTS logs (
-  id TEXT PRIMARY KEY,
-  version INTEGER,
-  timestamp TEXT,
-  user_input TEXT,
-  input_type TEXT,
-  llm_message TEXT,
-  llm_explanation TEXT,
-  tags_input TEXT,
-  tags_justification TEXT,
-  matched_tags TEXT,
-  matched_tags_in_strategies TEXT,
-  strategies TEXT,
-  rating TEXT,
-  written_feedback TEXT,
-  session_id TEXT
-)''')
-conn.commit()
 
-def log_session(user_input, input_type, message, explanation,
-                tags_input, tags_justification,
-                matched_tags, matched_tags_in_strategies,
-                strategies, rating=None, feedback=None, session_id=None):
-    entry_id = str(uuid.uuid4())
-    ts = datetime.datetime.utcnow().isoformat()
-    c.execute(
-        'INSERT INTO logs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        (entry_id, len(st.session_state.history), ts, user_input, input_type, message, explanation,
-         json.dumps(tags_input), json.dumps(tags_justification),
-         json.dumps(matched_tags), json.dumps(matched_tags_in_strategies),
-         json.dumps([s['title'] for s in strategies]),
-         str(rating) if rating is not None else None,
-         feedback, session_id)
-    )
-    conn.commit()
-    try:
-        with open('session_logs.csv', 'a', newline='', encoding='utf-8') as f:
-            csv.writer(f).writerow([
-                ts, entry_id, len(st.session_state.history), user_input, input_type, message, explanation,
-                json.dumps(tags_input), json.dumps(tags_justification),
-                json.dumps(matched_tags), json.dumps(matched_tags_in_strategies),
-                json.dumps([s['title'] for s in strategies]), rating, feedback, session_id
-            ])
-    except PermissionError:
-        st.warning("⚠️ Could not write to CSV. File may be open or locked.")
-
-def log_to_firestore(user_input, input_type, message, explanation,
-                     tags_input, tags_justification,
-                     matched_tags, matched_tags_in_strategies,
-                     strategies, rating=None, written_feedback=None, session_id=None):
+def log_to_firestore(
+    user_input,
+    input_type,
+    message,
+    explanation,
+    tags_input,
+    tags_justification,
+    matched_tags,
+    matched_tags_in_strategies,
+    strategies,
+    session_id=None,
+    rating=None,
+    written_feedback=None,
+    rebuttal=None,
+    confidence_score=None,
+    evaluation_justification=None,
+    suggested_improvements=None,
+    ultimate_reply=None,
+):
     if not db:
         return
+    version = len(st.session_state.history)  # monotonic per session
     doc = {
-        'version': len(st.session_state.history),
+        'version': version,
         'timestamp': datetime.datetime.utcnow().isoformat(),
-        'user_input': user_input,
-        'input_type': input_type,
-        'llm_message': message,
+        'session_id': session_id,
+        'user_input': user_input,                # JSON string you already pass
+        'input_type': input_type,                # "comment" | "draft_reply" | "both" | "unknown"
+        'llm_message': message,                  # final reply
         'llm_explanation': explanation,
-        'tags_input': tags_input,
-        'tags_justification': tags_justification,
-        'matched_tags': matched_tags,
+        'tags_input': tags_input,                # raw extracted tags (normalized list)
+        'tags_justification': tags_justification,# what model returned in "tags" field
+        'matched_tags': matched_tags,            # intersection with strategies
         'matched_tags_in_strategies': matched_tags_in_strategies,
-        'strategies': [s['title'] for s in strategies],
+        'strategies': [s.get('title', '') for s in strategies],
         'rating': rating,
         'written_feedback': written_feedback,
-        'session_id': session_id
+        # NEW fields:
+        'rebuttal': rebuttal,
+        'confidence_score': confidence_score,
+        'evaluation_justification': evaluation_justification,
+        'suggested_improvements': suggested_improvements,
+        'ultimate_reply': ultimate_reply,
     }
     try:
-        db.collection('session_logs').document(str(uuid.uuid4())).set(doc)
-    except Exception:
-        st.warning("❌ Firestore log failed.")
+        # Prefer hierarchical path for easy querying:
+        db.collection('sessions').document(str(session_id)) \
+          .collection('versions').document(str(version)).set(doc)
+    except Exception as e:
+        st.warning(f"❌ Firestore log failed: {e}")
 
 # ------------------- UI -------------------
 st.markdown("""
@@ -275,8 +249,7 @@ if st.session_state.get('run'):
                 "ultimate_reply": None,
                 "session_id": session_id
             })
-            log_session(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats,
-                        rating=rating_val, feedback=feedback_txt, session_id=session_id)
+         
             log_to_firestore(user_input=user_in, input_type=itype, message=msg, explanation=expl,
                             tags_input=tags, tags_justification=just,
                             matched_tags=matched_tags, matched_tags_in_strategies=matched_tags,
@@ -303,13 +276,14 @@ if st.session_state.get('run'):
         if len(st.session_state.history) > 1:
             st.session_state.history_index = len(st.session_state.history) - 2
 
-        log_session(user_in, itype, msg, expl, tags, just, matched_tags, matched_tags, strats,
-                    rating=rating_val, feedback=feedback_txt, session_id=session_id)
-        log_to_firestore(user_input=user_in, input_type=itype, message=msg, explanation=expl,
-                         tags_input=tags, tags_justification=just,
-                         matched_tags=matched_tags, matched_tags_in_strategies=matched_tags,
-                         strategies=strats, rating=rating_val, written_feedback=feedback_txt,
-                         session_id=session_id)
+      
+        log_to_firestore(
+            user_input=user_in, input_type=itype, message=msg, explanation=expl,
+            tags_input=tags, tags_justification=just,
+            matched_tags=matched_tags, matched_tags_in_strategies=matched_tags,
+            strategies=strats, rating=rating_val, written_feedback=feedback_txt,
+            session_id=session_id, rebuttal=rebuttal   
+        )
 
         st.session_state.run = False
         st.session_state.rating = None
