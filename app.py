@@ -1,180 +1,41 @@
-import streamlit as st  # Streamlit for UI
-import openai  # OpenAI client library
-from dotenv import load_dotenv  # Load .env files
-import os  # OS utilities (env vars, file paths)
-import json  # JSON encoding/decoding
-import uuid  # Generate unique IDs
-import datetime  # Timestamps
-import firebase_admin  # Firebase Admin SDK
-from firebase_admin import credentials, firestore  # Firestore client
-import re  # Regular expressions for parsing
+# This is the Streamlit app itself: everything the user sees and clicks on.
+# It doesn't talk to OpenAI or Firebase directly - that logic lives in
+# llm.py and firebase_logger.py - this file just wires the UI up to those
+# modules and keeps track of the conversation as the user interacts with it.
+#
+# Streamlit re-runs this entire script from top to bottom every time the
+# user does something (types text, clicks a button, moves a slider). To
+# remember things between those re-runs (like the conversation history),
+# Streamlit gives every user session a dictionary called
+# st.session_state that keeps its values across re-runs.
 
+import html
+import json
+import uuid
+
+import streamlit as st
+
+from firebase_logger import init_firebase, log_to_firestore
+from llm import extract_tags, generate_rebuttal, generate_reply, get_openai_client, load_prompt
+from strategies import filter_strategies_by_tags, load_strategies
+
+# Give this browser session a unique ID (used to group its log entries in
+# Firestore), but only the first time this code runs for this session -
+# "not in st.session_state" is False on every later re-run, so the ID stays
+# the same for as long as the user keeps this tab open.
 if "session_id" not in st.session_state:
     st.session_state["session_id"] = str(uuid.uuid4())
 if "history" not in st.session_state:
     st.session_state.history = []  # list of reply blocks
 
-# Load environment variables
-load_dotenv()
-
-# OpenAI API Key setup
-openai_api_key = os.getenv("api_key")
-try:
-    openai_api_key = st.secrets["openai"]["api_key"]
-except Exception:
-    pass
-client = openai.OpenAI(api_key=openai_api_key)
-
-# Firebase initialization
-db = None
-try:
-    firebase_config = None
-    try:
-        firebase_config = dict(st.secrets["firebase"])
-        firebase_config["private_key"] = firebase_config["private_key"].replace(
-            "\\n", "\n"
-        )
-    except Exception:
-        if os.path.exists("firebase_key.json"):
-            with open("firebase_key.json") as f:
-                firebase_config = json.load(f)
-    if firebase_config:
-        if not firebase_admin._apps:
-            cred = credentials.Certificate(firebase_config)
-            firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        st.session_state.firebase_app = True
-except Exception as e:
-    st.warning(f"⚠️ Firebase init failed: {e}")
-
-
-# Load prompt
-def load_prompt(fn):
-    with open(fn, encoding="utf-8") as f:
-        return f.read()
-
-
-def load_strategies(path="strategies.json"):
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        st.warning("⚠️ Could not load strategies.json")
-        return []
-
-
+client = get_openai_client()
+db = init_firebase()
 strategies = load_strategies()
 
-
-def filter_strategies_by_tags(all_strats, tags):
-    matched = [s for s in all_strats if any(t in s.get("tags", []) for t in tags)]
-    matched_tags = sorted({t for s in matched for t in s.get("tags", []) if t in tags})
-    return matched, matched_tags
-
-
-def extract_tags(comment, draft):
-    prompt = load_prompt("prompt1.txt").format(
-        comment=comment or "N/A", draft=draft or "N/A"
-    )
-    try:
-        r = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=100,
-        )
-        return json.loads(r.choices[0].message.content.strip())
-    except Exception:
-        st.warning("⚠️ Tag extraction failed.")
-        return []
-
-
-def generate_rebuttal(reply: str, comment: str, model="gpt-4o", temperature=0.7) -> str:
-    try:
-        rebuttal_prompt = load_prompt("prompt3.txt").format(
-            reply=reply, comment=comment
-        )
-        r = client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a skeptical, articulate critic of vegan arguments, tasked with challenging the assistant’s message.",
-                },
-                {"role": "user", "content": rebuttal_prompt},
-            ],
-            temperature=temperature,
-            max_tokens=400,
-        )
-        txt = r.choices[0].message.content.strip()
-
-        # Clean up code block formatting if GPT adds it
-        if txt.startswith("```json") or txt.startswith("```"):
-            txt = re.sub(
-                r"^```(?:json)?|```$", "", txt.strip(), flags=re.MULTILINE
-            ).strip()
-
-        parsed = json.loads(re.search(r"\{.*\}", txt, re.DOTALL).group(0))
-        return parsed.get("rebuttal", "[Rebuttal missing]")
-    except Exception as e:
-        st.warning(f"⚠️ Rebuttal generation failed: {e}")
-        return ""
-
-
-# Logging setup
-
-
-def log_to_firestore(
-    user_input,
-    input_type,
-    message,
-    explanation,
-    tags_input,
-    tags_justification,
-    matched_tags,
-    matched_tags_in_strategies,
-    strategies,
-    session_id=None,
-    rating=None,
-    written_feedback=None,
-    rebuttal=None,
-    confidence_score=None,
-    evaluation_justification=None,
-    suggested_improvements=None,
-    ultimate_reply=None,
-):
-    if not db:
-        return
-    version = len(st.session_state.history)  # monotonic per session
-    doc = {
-        "version": version,
-        "timestamp": datetime.datetime.utcnow().isoformat(),
-        "session_id": session_id,
-        "user_input": user_input,  # JSON string you already pass
-        "input_type": input_type,  # "comment" | "draft_reply" | "both" | "unknown"
-        "llm_message": message,  # final reply
-        "llm_explanation": explanation,
-        "tags_input": tags_input,  # raw extracted tags (normalized list)
-        "tags_justification": tags_justification,  # what model returned in "tags" field
-        "matched_tags": matched_tags,  # intersection with strategies
-        "matched_tags_in_strategies": matched_tags_in_strategies,
-        "strategies": [s.get("title", "") for s in strategies],
-        "rating": rating,
-        "written_feedback": written_feedback,
-        # NEW fields:
-        "rebuttal": rebuttal,
-        "confidence_score": confidence_score,
-        "evaluation_justification": evaluation_justification,
-        "suggested_improvements": suggested_improvements,
-        "ultimate_reply": ultimate_reply,
-    }
-    try:
-        db.collection("session_logs").document(str(uuid.uuid4())).set(doc)
-    except Exception as e:
-        st.warning(f"❌ Firestore log failed: {e}")
-
-
 # ------------------- UI -------------------
+# This block injects some custom CSS (styling rules) into the page - things
+# Streamlit doesn't offer built-in controls for, like tightening up the
+# spacing above the title and making the reply text a bit smaller.
 st.markdown(
     """
     <style>
@@ -189,7 +50,8 @@ st.markdown(
 
 st.markdown("## Animal Advocacy Messaging Assistant")
 st.write(
-    """This tool helps improve social media comments for better persuasiveness using behavioral science."""
+    "This tool helps improve social media comments for better "
+    "persuasiveness using behavioral science."
 )
 
 comment = st.text_area(
@@ -202,7 +64,9 @@ with st.expander("Optional: Your draft reply"):
     draft = st.text_area(
         "",
         key="draft_input",
-        placeholder="Write your reply draft here, or leave blank for the assistant to generate it...",
+        placeholder=(
+            "Write your reply draft here, or leave blank for the assistant to generate it..."
+        ),
         label_visibility="collapsed",
     )
 
@@ -210,22 +74,27 @@ if st.button("Generate a reply"):
     if not comment.strip() and not draft.strip():
         st.warning("Enter context or draft.")
     else:
+        # Setting this flag and calling st.rerun() immediately re-runs the
+        # script from the top. We do this (instead of just continuing
+        # below) so the "Thinking..." spinner further down shows up right
+        # away, on its own re-run, rather than only after the whole button
+        # click's work is already done.
         st.session_state.run = True
         st.rerun()
 
 if st.session_state.get("run"):
+    # st.spinner shows a small loading animation for as long as the
+    # indented block underneath it is still running.
     with st.spinner("Thinking..."):
         session_id = st.session_state["session_id"]
-        tags = extract_tags(comment.strip(), draft.strip())
+        tags = extract_tags(client, comment.strip(), draft.strip())
         strats, matched_tags = filter_strategies_by_tags(strategies, tags)
         strat_block = (
             "\n".join(f"- {s['title']}: {s['description']}" for s in strats)
             or "No strategies matched."
         )
 
-        base_prompt = load_prompt("prompt2.txt").format(
-            formatted_strategies=strat_block
-        )
+        base_prompt = load_prompt("prompt2.txt").format(formatted_strategies=strat_block)
 
         feedback_txt = st.session_state.get("feedback", "").strip()
         rating_val = st.session_state.get("rating")
@@ -235,34 +104,16 @@ if st.session_state.get("run"):
                 f"You just received the following feedback on your previous reply:\n"
                 f'- Written feedback: "{feedback_txt}"\n'
                 f"- Rating: {rating_val}/5\n\n"
-                f"Revise your reply accordingly before applying the rest of the instructions. You should still ask for clarifictaion if the input is not relate dto animal advocacy. \n"
-                f"If the rating is under 4, that means the user wasn’t fully satisfied — make sure to address their concerns. The lower the rating, the more you should change the reply. \n"
-                f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. If you did not include any part of the feedback, explain why. \n"
+                f"Revise your reply accordingly before applying the rest of the instructions. You should still ask for clarifictaion if the input is not relate dto animal advocacy. \n"  # noqa: E501
+                f"If the rating is under 4, that means the user wasn’t fully satisfied — make sure to address their concerns. The lower the rating, the more you should change the reply. \n"  # noqa: E501
+                f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. If you did not include any part of the feedback, explain why. \n"  # noqa: E501
             )
 
             prompt = feedback_block + "\n" + base_prompt
         else:
             prompt = base_prompt
 
-        # st.markdown("#### Prompt passed to GPT")
-        # st.code(prompt)
-
-        r = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": prompt},
-                {
-                    "role": "user",
-                    "content": json.dumps({"comment": comment, "draft_reply": draft}),
-                },
-            ],
-            temperature=0.7,
-            max_tokens=400,
-        )
-        txt = r.choices[0].message.content
-        if txt.startswith("```json"):
-            txt = txt.strip("```json").strip("```")
-        parsed = json.loads(re.search(r"\{.*\}", txt, re.DOTALL).group(0))
+        parsed = generate_reply(client, prompt, comment, draft)
 
         user_in = json.dumps({"comment": comment, "draft_reply": draft})
         itype = parsed.get("input_type", "unknown")
@@ -292,6 +143,8 @@ if st.session_state.get("run"):
             )
 
             log_to_firestore(
+                db,
+                version=len(st.session_state.history),
                 user_input=user_in,
                 input_type=itype,
                 message=msg,
@@ -307,7 +160,7 @@ if st.session_state.get("run"):
             )
             st.session_state.run = False
             st.rerun()
-        rebuttal = generate_rebuttal(msg, comment)
+        rebuttal = generate_rebuttal(client, msg, comment)
 
         st.session_state.history.append(
             {
@@ -327,6 +180,8 @@ if st.session_state.get("run"):
             st.session_state.history_index = len(st.session_state.history) - 2
 
         log_to_firestore(
+            db,
+            version=len(st.session_state.history),
             user_input=user_in,
             input_type=itype,
             message=msg,
@@ -348,22 +203,36 @@ if st.session_state.get("run"):
 
 if st.session_state.history:
     if len(st.session_state.history) == 1:
+        # Only one reply exists yet, so just show it - no need for the
+        # "previous versions" browser below.
+        #
+        # The reply/explanation/rebuttal text below comes from GPT, and
+        # GPT's output is itself shaped by whatever the visitor typed in as
+        # the comment/draft - so it isn't fully trusted. html.escape(...)
+        # converts characters like < and > into their safe HTML entities
+        # (&lt;, &gt;) so that text can never be interpreted as actual HTML
+        # tags/scripts when it's inserted into the page below.
         latest = st.session_state.history[-1]
         st.markdown(
-            f"<div class='reply-line'><span class='reply-label'>Reply:</span>{latest['reply']}</div>",
+            f"<div class='reply-line'><span class='reply-label'>Reply:</span>"
+            f"{html.escape(latest['reply'])}</div>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>",
+            f"<div class='reply-line'><span class='reply-label'>Explanation:</span>"
+            f"{html.escape(latest['explanation'])}</div>",
             unsafe_allow_html=True,
         )
         if latest.get("rebuttal"):
             st.markdown(
-                f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{latest['rebuttal']}</div>",
+                f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>"
+                f"{html.escape(latest['rebuttal'])}</div>",
                 unsafe_allow_html=True,
             )
 
     else:
+        # More than one reply exists (the user regenerated at least once),
+        # so show the latest reply next to a small browser for earlier ones.
         col1, col2 = st.columns([1, 1])
         with col1:
             st.markdown(
@@ -371,18 +240,21 @@ if st.session_state.history:
                 unsafe_allow_html=True,
             )
             latest = st.session_state.history[-1]
-            latest = st.session_state.history[-1]
             st.markdown(
-                f"<div class='reply-line'><span class='reply-label'>Latest Reply:</span>{latest['reply']}</div>",
+                f"<div class='reply-line'><span class='reply-label'>Latest Reply:</span>"
+                f"{html.escape(latest['reply'])}</div>",
                 unsafe_allow_html=True,
             )
             st.markdown(
-                f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{latest['explanation']}</div>",
+                f"<div class='reply-line'><span class='reply-label'>Explanation:</span>"
+                f"{html.escape(latest['explanation'])}</div>",
                 unsafe_allow_html=True,
             )
             if latest.get("rebuttal"):
                 st.markdown(
-                    f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{latest['rebuttal']}</div>",
+                    f"<div class='reply-line'>"
+                    f"<span class='reply-label'>Possible rebuttal:</span>"
+                    f"{html.escape(latest['rebuttal'])}</div>",
                     unsafe_allow_html=True,
                 )
 
@@ -395,15 +267,15 @@ if st.session_state.history:
 
                 col_l, col_m, col_r = st.columns([1, 3.5, 1])
                 with col_l:
+                    # on_click takes a function to run when the button is
+                    # pressed. Here that function is a "lambda" - a small,
+                    # unnamed function written inline - which moves the
+                    # history browser one step back, but never below 0.
                     st.button(
                         " ◀ ",
                         key="prev_btn",
                         on_click=lambda: st.session_state.update(
-                            {
-                                "history_index": max(
-                                    0, st.session_state.history_index - 1
-                                )
-                            }
+                            {"history_index": max(0, st.session_state.history_index - 1)}
                         ),
                         use_container_width=True,
                     )
@@ -429,16 +301,22 @@ if st.session_state.history:
 
                 selected = st.session_state.history[st.session_state.history_index]
                 st.markdown(
-                    f"<div class='reply-line'><span class='reply-label'>Reply Version {st.session_state.history_index + 1}:</span>{selected['reply']}</div>",
+                    f"<div class='reply-line'>"
+                    f"<span class='reply-label'>"
+                    f"Reply Version {st.session_state.history_index + 1}:</span>"
+                    f"{html.escape(selected['reply'])}</div>",
                     unsafe_allow_html=True,
                 )
                 st.markdown(
-                    f"<div class='reply-line'><span class='reply-label'>Explanation:</span>{selected['explanation']}</div>",
+                    f"<div class='reply-line'><span class='reply-label'>Explanation:</span>"
+                    f"{html.escape(selected['explanation'])}</div>",
                     unsafe_allow_html=True,
                 )
                 if selected.get("rebuttal"):
                     st.markdown(
-                        f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>{selected['rebuttal']}</div>",
+                        f"<div class='reply-line'>"
+                        f"<span class='reply-label'>Possible rebuttal:</span>"
+                        f"{html.escape(selected['rebuttal'])}</div>",
                         unsafe_allow_html=True,
                     )
             else:
@@ -446,12 +324,8 @@ if st.session_state.history:
 
     st.markdown("---")
     st.markdown("### Feedback")
-    rate = st.slider(
-        "How do you like the most recent response?", 1, 5, 3, key="rating_input"
-    )
-    fb = st.text_area(
-        "Optional feedback (used only if you regenerate):", key="fb_input"
-    )
+    rate = st.slider("How do you like the most recent response?", 1, 5, 3, key="rating_input")
+    fb = st.text_area("Optional feedback (used only if you regenerate):", key="fb_input")
     st.session_state.rating = rate
     st.session_state.feedback = fb
 
@@ -460,6 +334,10 @@ if st.session_state.history:
         st.rerun()
 
     if st.button("🆕 New session"):
+        # Delete every key currently in session_state, which wipes the
+        # conversation history, session id, etc. - the next re-run then
+        # falls through to the "if ... not in st.session_state" checks near
+        # the top of this file and starts fresh.
         for key in list(st.session_state.keys()):
             del st.session_state[key]
-        st.experimental_rerun()
+        st.rerun()
