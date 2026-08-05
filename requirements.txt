@@ -2,3 +2,4 @@ streamlit==1.60.0
 openai==2.46.0
 python-dotenv==1.2.2
 firebase_admin==7.5.0
+starlette==1.3.1
