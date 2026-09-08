@@ -4,7 +4,7 @@
 # AI Powered Animal Advocacy Messaging Assistant Based On Behavioral Science
 *Draft persuasive social media replies that change minds, not start fights.*
 
-This tool helps animal rights advocates craft more persuasive social media comments using OpenAI and behavioral science strategies. It supports animal advocates in responding more effectively in online discussions, especially when engaging with meat-eaters.
+This tool helps animal rights advocates craft more persuasive social media comments using OpenRouter-powered language models and behavioral science strategies. It supports animal advocates in responding more effectively in online discussions, especially when engaging with meat-eaters.
 
 Too often, pro-vegan or animal rights comments come across as moralizing or confrontational, which can trigger defensiveness and shut down conversation, instead of shifting attitudes. This assistant draws from behavioral science, strategic communication, and AI tools to rewrite or generate replies that build rapport, reduce resistance, and inspire change.
 
@@ -71,7 +71,7 @@ This prototype showcases a small sample of behavioral and communication techniqu
 
 - Python
 - Streamlit
-- OpenAI GPT
+- OpenRouter (model-agnostic LLM access)
 - Firebase Firestore
 
 ## Testing Methodology
@@ -81,7 +81,7 @@ The internal prompt chain was tested step-by-step to ensure:
 
 - Accurate tag extraction
 - Proper strategy injection
-- GPT adherence to prompt logic
+- Model adherence to prompt logic
 - Correct handling of clarification cases (e.g., ambiguous input halts the chain)
 - Proper formatting of JSON outputs across each prompt stage
 
@@ -93,6 +93,16 @@ Realistic and adversarial inputs were tested to verify:
 - Clarification triggers for vague/conflicting comments
 - Input/output formatting integrity
 - No leakage of system prompt or strategy list in final responses
+
+**Cross-Model Evaluation**
+
+Since the assistant runs on OpenRouter rather than a single fixed provider, the `eval/` directory
+holds a small, repeatable evaluation harness: a fixed set of representative and adversarial inputs
+(friendly, hostile, vague, prompt-injection attempts, and more) run through the real prompt chain
+against several candidate models at once. Each output is scored by a separate judge model against a
+written rubric covering persuasiveness, tone, JSON format compliance, correct clarification
+triggering, and injection resistance, producing a side-by-side comparison table. This is what's used
+to decide which model the live app runs on, rather than relying on a handful of manual tries.
 
 ## Abuse & Jailbreaking Policy
 
