@@ -1,5 +1,6 @@
-# This file is the only place that actually talks to the OpenAI API. It has
-# three jobs, matching the three prompt files in this repo:
+# This file is the only place that actually talks to the LLM (via
+# OpenRouter, using the same "openai" package pointed at a different
+# server). It has three jobs, matching the three prompt files in this repo:
 #   - extract_tags: read the conversation and label its emotional tone
 #     (prompt1.txt)
 #   - generate_reply: write the persuasive reply itself (prompt2.txt, built
@@ -12,15 +13,18 @@ import logging
 
 import openai
 import streamlit as st
+from pydantic import BaseModel
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from config import (
     MODEL_NAME,
+    OPENROUTER_BASE_URL,
     REBUTTAL_MAX_TOKENS,
     REPLY_MAX_TOKENS,
     REPLY_TEMPERATURE,
     TAG_EXTRACTION_MAX_TOKENS,
     TAG_EXTRACTION_TEMPERATURE,
-    get_openai_api_key,
+    get_llm_api_key,
 )
 from jsonutils import parse_json_object
 
@@ -31,9 +35,90 @@ from jsonutils import parse_json_object
 logger = logging.getLogger(__name__)
 
 
-def get_openai_client():
-    """Create an OpenAI client configured with our API key."""
-    return openai.OpenAI(api_key=get_openai_api_key())
+class ReplyResponse(BaseModel):
+    """The shape we expect back from the reply-generation prompt (prompt2.txt).
+
+    A "pydantic" model like this one checks, as soon as data is loaded into
+    it, that every field has the right type - if a model's JSON reply is
+    missing a field or has the wrong type in it, we find out immediately
+    with a clear error, instead of that mistake quietly turning into an
+    empty string somewhere deep in app.py. Giving every field a default
+    value here means a reply that's simply missing a field (rather than
+    having the wrong type) doesn't raise an error at all - it just falls
+    back to that default, same as the old dict.get(..., default) calls did.
+    """
+
+    message: str = ""
+    follow_up_question: str = ""
+    explanation: str = ""
+    input_type: str = "unknown"
+    needs_clarification: bool = False
+    # The exact text the model returned, before any parsing/validation -
+    # app.py never looks at this, but eval/run_eval.py uses it to judge
+    # whether a model's raw output was well-formed JSON in the first place.
+    raw_text: str = ""
+
+
+# Errors worth retrying: all of these are "transient" - a rate limit, a
+# dropped connection, a request that timed out, or the provider's server
+# briefly erroring - where trying again after a short pause has a real
+# chance of succeeding. Free OpenRouter models in particular have fairly
+# tight per-minute rate limits, so a busy demo visitor can hit one.
+# Authentication/bad-request style errors are deliberately NOT in this
+# list, since retrying those would just fail again in the same way.
+_TRANSIENT_ERRORS = (
+    openai.RateLimitError,
+    openai.APIConnectionError,
+    openai.APITimeoutError,
+    openai.InternalServerError,
+)
+
+# Shown specifically when every retry above still ends in a rate limit -
+# free OpenRouter models share a fairly small per-minute quota across
+# everyone using them, so this is a meaningfully different (and more
+# honest) situation than "something broke."
+_RATE_LIMIT_MESSAGE = (
+    "⏳ The current model is busy right now (rate limited). Please wait a moment and try again."
+)
+
+
+@retry(
+    retry=retry_if_exception_type(_TRANSIENT_ERRORS),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    reraise=True,
+)
+def _create_completion(client, **kwargs):
+    """Call the chat completions endpoint, retrying transient failures.
+
+    "**kwargs" collects any number of named arguments (model=...,
+    messages=..., etc.) into a dictionary, so this one wrapper can sit in
+    front of every call site below without needing to know their exact
+    arguments. The @retry decorator above wraps this whole function: on one
+    of the _TRANSIENT_ERRORS, it waits and calls the function again (up to
+    3 attempts total, waiting longer each time); reraise=True means that if
+    every attempt fails, the original error is raised as normal so the
+    try/except blocks in the functions below still catch it.
+    """
+    return client.chat.completions.create(**kwargs)
+
+
+def get_llm_client():
+    """Create an OpenAI-SDK client pointed at OpenRouter instead of OpenAI.
+
+    OpenRouter's API matches OpenAI's exactly, so the same client class
+    works - it just needs a different "base_url" and an OpenRouter API key.
+    default_headers are sent with every request; OpenRouter uses them to
+    attribute usage to this project in its dashboards/public rankings.
+    """
+    return openai.OpenAI(
+        api_key=get_llm_api_key(),
+        base_url=OPENROUTER_BASE_URL,
+        default_headers={
+            "HTTP-Referer": "https://behavioral-advocate-tool.streamlit.app/",
+            "X-Title": "Animal Advocacy Messaging Assistant",
+        },
+    )
 
 
 def load_prompt(fn):
@@ -42,24 +127,34 @@ def load_prompt(fn):
         return f.read()
 
 
-def extract_tags(client, comment, draft):
+def extract_tags(client, comment, draft, model=MODEL_NAME):
     """Ask GPT to label the comment/draft with a handful of tone tags.
 
     These tags (e.g. "defensive", "curious") are later used to pick relevant
     strategies from strategies.json. Returns an empty list if the call or
     the JSON parsing fails, so the rest of the app can carry on without tags.
+
+    "model" defaults to the app's configured MODEL_NAME; the eval harness in
+    eval/run_eval.py passes a different model id here to compare several
+    models against the same prompt without needing its own copy of this
+    function.
     """
     # str.format(...) fills in the {comment} and {draft} placeholders inside
     # prompt1.txt with the actual values.
     prompt = load_prompt("prompt1.txt").format(comment=comment or "N/A", draft=draft or "N/A")
     try:
-        r = client.chat.completions.create(
-            model=MODEL_NAME,
+        r = _create_completion(
+            client,
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=TAG_EXTRACTION_TEMPERATURE,
             max_tokens=TAG_EXTRACTION_MAX_TOKENS,
         )
         return json.loads(r.choices[0].message.content.strip())
+    except openai.RateLimitError:
+        logger.exception("Tag extraction rate-limited")
+        st.warning(_RATE_LIMIT_MESSAGE)
+        return []
     except Exception:
         # logger.exception(...) records the full error details (including
         # where it happened) to the server logs, while st.warning(...)
@@ -69,38 +164,71 @@ def extract_tags(client, comment, draft):
         return []
 
 
-def generate_reply(client, prompt, comment, draft):
+def generate_reply(client, prompt, comment, draft, model=MODEL_NAME):
     """Ask GPT to write (or improve) the persuasive reply.
 
     "prompt" is the full system prompt built by app.py (prompt2.txt plus the
-    matched strategies, and any previous feedback). Returns the parsed JSON
-    dict GPT replied with - e.g. {"message": ..., "explanation": ...}.
+    matched strategies, and any previous feedback). Returns a validated
+    ReplyResponse - e.g. ReplyResponse(message=..., explanation=..., ...).
+    If the call fails or the model's JSON doesn't match the expected shape,
+    returns a ReplyResponse that asks the user to try again, reusing the
+    same "needs_clarification" path the UI already handles below.
+
+    "model" defaults to the app's configured MODEL_NAME - see extract_tags
+    above for why it's a parameter.
     """
-    r = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": prompt},
-            {
-                "role": "user",
-                "content": json.dumps({"comment": comment, "draft_reply": draft}),
-            },
-        ],
-        temperature=REPLY_TEMPERATURE,
-        max_tokens=REPLY_MAX_TOKENS,
-    )
-    txt = r.choices[0].message.content
-    return parse_json_object(txt)
+    content = ""
+    try:
+        r = _create_completion(
+            client,
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {
+                    "role": "user",
+                    "content": json.dumps({"comment": comment, "draft_reply": draft}),
+                },
+            ],
+            temperature=REPLY_TEMPERATURE,
+            max_tokens=REPLY_MAX_TOKENS,
+        )
+        # Captured before parsing, so it's still available below even if
+        # parsing/validation is what ends up failing.
+        content = r.choices[0].message.content or ""
+        parsed = parse_json_object(content)
+        response = ReplyResponse.model_validate(parsed)
+        response.raw_text = content
+        return response
+    except openai.RateLimitError:
+        logger.exception("Reply generation rate-limited")
+        st.warning(_RATE_LIMIT_MESSAGE)
+        return ReplyResponse(
+            needs_clarification=True,
+            follow_up_question="The assistant is temporarily busy - please wait and try again.",
+            raw_text=content,
+        )
+    except Exception:
+        logger.exception("Reply generation failed")
+        st.warning("⚠️ Reply generation failed.")
+        return ReplyResponse(
+            needs_clarification=True,
+            follow_up_question="Something went wrong generating a reply. Please try again.",
+            raw_text=content,
+        )
 
 
-def generate_rebuttal(client, reply: str, comment: str) -> str:
+def generate_rebuttal(client, reply: str, comment: str, model=MODEL_NAME) -> str:
     """Ask GPT to play skeptic and push back on our own reply.
 
     Returns the rebuttal text, or an empty string if generation fails.
+    "model" defaults to the app's configured MODEL_NAME - see extract_tags
+    above for why it's a parameter.
     """
     try:
         rebuttal_prompt = load_prompt("prompt3.txt").format(reply=reply, comment=comment)
-        r = client.chat.completions.create(
-            model=MODEL_NAME,
+        r = _create_completion(
+            client,
+            model=model,
             messages=[
                 {
                     "role": "system",
@@ -120,7 +248,14 @@ def generate_rebuttal(client, reply: str, comment: str) -> str:
         )
         parsed = parse_json_object(r.choices[0].message.content)
         return parsed.get("rebuttal", "[Rebuttal missing]")
-    except Exception as e:
+    except openai.RateLimitError:
+        logger.exception("Rebuttal generation rate-limited")
+        st.warning(_RATE_LIMIT_MESSAGE)
+        return ""
+    except Exception:
+        # The exception details go to the server log only (logger.exception
+        # records the full traceback); the on-screen message stays generic
+        # so a public visitor never sees internal error text.
         logger.exception("Rebuttal generation failed")
-        st.warning(f"⚠️ Rebuttal generation failed: {e}")
+        st.warning("⚠️ Rebuttal generation failed.")
         return ""

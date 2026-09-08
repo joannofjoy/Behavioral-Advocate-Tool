@@ -15,8 +15,9 @@ import uuid
 
 import streamlit as st
 
+from config import MAX_GENERATIONS_PER_SESSION, MAX_INPUT_CHARS
 from firebase_logger import init_firebase, log_to_firestore
-from llm import extract_tags, generate_rebuttal, generate_reply, get_openai_client, load_prompt
+from llm import extract_tags, generate_rebuttal, generate_reply, get_llm_client, load_prompt
 from strategies import filter_strategies_by_tags, load_strategies
 
 # Give this browser session a unique ID (used to group its log entries in
@@ -27,8 +28,10 @@ if "session_id" not in st.session_state:
     st.session_state["session_id"] = str(uuid.uuid4())
 if "history" not in st.session_state:
     st.session_state.history = []  # list of reply blocks
+if "generation_count" not in st.session_state:
+    st.session_state.generation_count = 0  # replies generated so far this session
 
-client = get_openai_client()
+client = get_llm_client()
 db = init_firebase()
 strategies = load_strategies()
 
@@ -73,6 +76,8 @@ with st.expander("Optional: Your draft reply"):
 if st.button("Generate a reply"):
     if not comment.strip() and not draft.strip():
         st.warning("Enter context or draft.")
+    elif len(comment) > MAX_INPUT_CHARS or len(draft) > MAX_INPUT_CHARS:
+        st.warning(f"Please keep each field under {MAX_INPUT_CHARS} characters.")
     else:
         # Setting this flag and calling st.rerun() immediately re-runs the
         # script from the top. We do this (instead of just continuing
@@ -82,7 +87,15 @@ if st.button("Generate a reply"):
         st.session_state.run = True
         st.rerun()
 
+if st.session_state.get("run") and st.session_state.generation_count >= MAX_GENERATIONS_PER_SESSION:
+    st.warning(
+        f"You've reached the {MAX_GENERATIONS_PER_SESSION}-reply limit for this session. "
+        "Start a new session to continue."
+    )
+    st.session_state.run = False
+
 if st.session_state.get("run"):
+    st.session_state.generation_count += 1
     # st.spinner shows a small loading animation for as long as the
     # indented block underneath it is still running.
     with st.spinner("Thinking..."):
@@ -116,13 +129,11 @@ if st.session_state.get("run"):
         parsed = generate_reply(client, prompt, comment, draft)
 
         user_in = json.dumps({"comment": comment, "draft_reply": draft})
-        itype = parsed.get("input_type", "unknown")
-        msg = parsed.get("message", parsed.get("follow_up_question", ""))
-        expl = parsed.get("explanation") or (
-            "Needs clarification" if parsed.get("needs_clarification") else ""
-        )
-        just = parsed.get("tags", [])
-        if parsed.get("needs_clarification"):
+        itype = parsed.input_type
+        msg = parsed.message or parsed.follow_up_question
+        expl = parsed.explanation or ("Needs clarification" if parsed.needs_clarification else "")
+        just = []
+        if parsed.needs_clarification:
             st.session_state.history.append(
                 {
                     "reply": msg,

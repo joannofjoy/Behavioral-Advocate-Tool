@@ -44,9 +44,11 @@ def init_firebase():
             except ValueError:
                 pass
             return firestore.client()
-    except Exception as e:
+    except Exception:
+        # Full details go to the server log only; the on-screen message
+        # stays generic so a public visitor never sees internal error text.
         logger.exception("Firebase init failed")
-        st.warning(f"⚠️ Firebase init failed: {e}")
+        st.warning("⚠️ Firebase init failed.")
     return None
 
 
@@ -113,6 +115,24 @@ def log_to_firestore(
         # uuid.uuid4() generates a random, practically-unique ID to use as
         # this document's name in the "session_logs" collection.
         db.collection("session_logs").document(str(uuid.uuid4())).set(doc)
-    except Exception as e:
+    except Exception:
         logger.exception("Firestore log failed")
-        st.warning(f"❌ Firestore log failed: {e}")
+        st.warning("❌ Firestore log failed.")
+
+
+def fetch_rated_sessions(db):
+    """Read back every logged session that has a rating.
+
+    This is the read counterpart to log_to_firestore(). Used by
+    rating_correlations.py (run by hand, outside the Streamlit app) to see
+    which strategies tend to show up in higher-rated replies - the app
+    itself never reads Firestore back, it only writes to it.
+    """
+    if not db:
+        return []
+    # .stream() gets every document in the collection one at a time (rather
+    # than loading them all into memory as one big list up front); doc.to_dict()
+    # turns each one back into a plain Python dictionary, the same shape
+    # log_to_firestore() originally saved.
+    docs = db.collection("session_logs").stream()
+    return [doc.to_dict() for doc in docs if doc.to_dict().get("rating") is not None]
