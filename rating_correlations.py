@@ -43,13 +43,17 @@ def print_summary(strategy_averages):
         print("No rated sessions found yet - nothing to analyze.")
         return
 
-    print(f"{'strategy'.ljust(40)}{'avg rating'.ljust(12)}sample count")
+    # ljust(40) pads short titles out to 40 characters, but doesn't truncate
+    # longer ones - so a title over 40 characters would otherwise run
+    # straight into the numbers with no gap. Using explicit " | " separators
+    # instead means every row stays readable regardless of title length.
+    print(f"{'strategy'.ljust(40)} | avg rating | sample count")
     # Sort by average rating first (best strategies at the top), then by
     # how many times it was used, so a 5.0-from-one-use doesn't outrank a
     # 4.5-from-thirty-uses at a glance.
     rows = sorted(strategy_averages.items(), key=lambda kv: (-kv[1][0], -kv[1][1]))
     for title, (avg, count) in rows:
-        print(f"{title.ljust(40)}{avg:.2f}".ljust(52) + str(count))
+        print(f"{title.ljust(40)} | {avg:.2f}".ljust(56) + f" | {count}")
 
 
 def main():
@@ -59,8 +63,19 @@ def main():
         return
 
     sessions = fetch_rated_sessions(db)
-    print(f"Found {len(sessions)} rated session(s) in Firestore.\n")
-    strategy_averages = compute_strategy_averages(sessions)
+    # A handful of older logged records have a non-numeric "rating" (a
+    # session ID string, an empty list) - almost certainly from a bug in an
+    # earlier version of the logging code, not anything from today. Rather
+    # than crash on them or silently drop them, count and report how many
+    # get excluded so that's visible instead of hidden.
+    numeric_sessions = [s for s in sessions if isinstance(s.get("rating"), (int, float))]
+    skipped = len(sessions) - len(numeric_sessions)
+    print(f"Found {len(sessions)} rated session(s) in Firestore.")
+    if skipped:
+        print(f"Skipped {skipped} with a non-numeric rating (likely corrupted old records).")
+    print()
+
+    strategy_averages = compute_strategy_averages(numeric_sessions)
     print_summary(strategy_averages)
 
 
