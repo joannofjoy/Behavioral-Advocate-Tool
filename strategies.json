@@ -118,5 +118,13 @@
     "description": "When someone left veganism, the underlying need, like health concerns or inadequate nutrition support, was likely real even if going back to meat wasn't the ideal fix. Acknowledge that need and offer nutrition or community support resources rather than re-litigating the choice.",
     "tags": ["ex-vegan", "health concern"],
     "goals": ["empathy", "reduce defensiveness", "reconnect with values"]
+  },
+  {
+    "title": "Reinforce Meat-Reducing Identity",
+    "source": "Faunalytics (Rosenfeld, Rothgerber & Tomiyama, 2020)",
+    "source_url": "https://faunalytics.org/the-psychology-of-flexitarianism/",
+    "description": "For someone already cutting back on meat but not fully vegetarian, affirm the choices they've already made and connect them to a wider meat-reducing movement, rather than treating them like an unconvinced omnivore. Taking pride in this identity is linked to actually going further, more than pointing out how many vegetarians they know.",
+    "tags": ["flexitarian", "reducetarian"],
+    "goals": ["identity reinforcement", "behavioral shift", "movement momentum"]
   }
 ]
