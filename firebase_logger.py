@@ -72,6 +72,9 @@ def log_to_firestore(
     evaluation_justification=None,
     suggested_improvements=None,
     ultimate_reply=None,
+    usage_details=None,
+    tokens_used=None,
+    cost_usd=None,
 ):
     """Save one reply/session record to the "session_logs" collection.
 
@@ -110,6 +113,14 @@ def log_to_firestore(
         "evaluation_justification": evaluation_justification,
         "suggested_improvements": suggested_improvements,
         "ultimate_reply": ultimate_reply,
+        # Per-call token/cost usage from every LLM call this interaction
+        # made (see llm.py's _record_usage) plus the totals, so spend can
+        # be tracked without needing to check OpenRouter's own dashboard -
+        # useful since this app currently runs on a key from someone else's
+        # OpenRouter account.
+        "usage_details": usage_details,
+        "tokens_used": tokens_used,
+        "cost_usd": cost_usd,
     }
     try:
         # uuid.uuid4() generates a random, practically-unique ID to use as
@@ -136,3 +147,17 @@ def fetch_rated_sessions(db):
     # log_to_firestore() originally saved.
     docs = db.collection("session_logs").stream()
     return [doc.to_dict() for doc in docs if doc.to_dict().get("rating") is not None]
+
+
+def fetch_all_sessions(db):
+    """Read back every logged session, rated or not.
+
+    Another read counterpart to log_to_firestore(), used by
+    check_credits.py to add up the cost/tokens_used recorded on every
+    interaction rather than only the rated ones fetch_rated_sessions()
+    returns.
+    """
+    if not db:
+        return []
+    docs = db.collection("session_logs").stream()
+    return [doc.to_dict() for doc in docs]

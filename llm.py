@@ -103,6 +103,37 @@ def _create_completion(client, **kwargs):
     return client.chat.completions.create(**kwargs)
 
 
+def _record_usage(response, usage_log):
+    """Append one API call's token/cost usage to usage_log, if one was given.
+
+    OpenRouter includes a "usage" object on every chat completion response
+    with prompt_tokens, completion_tokens, total_tokens, and cost (the
+    exact dollar amount charged for that one call) - no special request
+    parameters needed, it's always there. "usage_log" is a plain list the
+    caller can pass in to collect these across the several calls that make
+    up one interaction (tag extraction, reply, rebuttal); if usage_log is
+    None (the default - e.g. eval/run_eval.py doesn't pass one, since it
+    doesn't care about cost tracking), this simply does nothing.
+    """
+    if usage_log is None:
+        return
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return
+    # model_dump() turns the SDK's usage object into a plain dict. It picks
+    # up "cost" even though that's an OpenRouter-specific extra field, not
+    # part of the standard OpenAI response shape, because the SDK's models
+    # are built to tolerate and pass through fields they don't know about.
+    usage_dict = usage.model_dump()
+    usage_log.append(
+        {
+            "model": response.model,
+            "total_tokens": usage_dict.get("total_tokens"),
+            "cost": usage_dict.get("cost"),
+        }
+    )
+
+
 def get_llm_client():
     """Create an OpenAI-SDK client pointed at OpenRouter instead of OpenAI.
 
@@ -127,7 +158,7 @@ def load_prompt(fn):
         return f.read()
 
 
-def extract_tags(client, comment, draft, model=MODEL_NAME):
+def extract_tags(client, comment, draft, model=MODEL_NAME, usage_log=None):
     """Ask GPT to label the comment/draft with a handful of tone tags.
 
     These tags (e.g. "defensive", "curious") are later used to pick relevant
@@ -137,7 +168,7 @@ def extract_tags(client, comment, draft, model=MODEL_NAME):
     "model" defaults to the app's configured MODEL_NAME; the eval harness in
     eval/run_eval.py passes a different model id here to compare several
     models against the same prompt without needing its own copy of this
-    function.
+    function. "usage_log" is optional - see _record_usage above.
     """
     # str.format(...) fills in the {comment} and {draft} placeholders inside
     # prompt1.txt with the actual values.
@@ -150,6 +181,7 @@ def extract_tags(client, comment, draft, model=MODEL_NAME):
             temperature=TAG_EXTRACTION_TEMPERATURE,
             max_tokens=TAG_EXTRACTION_MAX_TOKENS,
         )
+        _record_usage(r, usage_log)
         return json.loads(r.choices[0].message.content.strip())
     except openai.RateLimitError:
         logger.exception("Tag extraction rate-limited")
@@ -164,7 +196,7 @@ def extract_tags(client, comment, draft, model=MODEL_NAME):
         return []
 
 
-def generate_reply(client, prompt, comment, draft, model=MODEL_NAME):
+def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=None):
     """Ask GPT to write (or improve) the persuasive reply.
 
     "prompt" is the full system prompt built by app.py (prompt2.txt plus the
@@ -175,7 +207,8 @@ def generate_reply(client, prompt, comment, draft, model=MODEL_NAME):
     same "needs_clarification" path the UI already handles below.
 
     "model" defaults to the app's configured MODEL_NAME - see extract_tags
-    above for why it's a parameter.
+    above for why it's a parameter. "usage_log" is optional - see
+    _record_usage above.
     """
     content = ""
     try:
@@ -192,6 +225,7 @@ def generate_reply(client, prompt, comment, draft, model=MODEL_NAME):
             temperature=REPLY_TEMPERATURE,
             max_tokens=REPLY_MAX_TOKENS,
         )
+        _record_usage(r, usage_log)
         # Captured before parsing, so it's still available below even if
         # parsing/validation is what ends up failing.
         content = r.choices[0].message.content or ""
@@ -217,12 +251,13 @@ def generate_reply(client, prompt, comment, draft, model=MODEL_NAME):
         )
 
 
-def generate_rebuttal(client, reply: str, comment: str, model=MODEL_NAME) -> str:
+def generate_rebuttal(client, reply: str, comment: str, model=MODEL_NAME, usage_log=None) -> str:
     """Ask GPT to play skeptic and push back on our own reply.
 
     Returns the rebuttal text, or an empty string if generation fails.
     "model" defaults to the app's configured MODEL_NAME - see extract_tags
-    above for why it's a parameter.
+    above for why it's a parameter. "usage_log" is optional - see
+    _record_usage above.
     """
     try:
         rebuttal_prompt = load_prompt("prompt3.txt").format(reply=reply, comment=comment)
@@ -246,6 +281,7 @@ def generate_rebuttal(client, reply: str, comment: str, model=MODEL_NAME) -> str
             temperature=REPLY_TEMPERATURE,
             max_tokens=REBUTTAL_MAX_TOKENS,
         )
+        _record_usage(r, usage_log)
         parsed = parse_json_object(r.choices[0].message.content)
         return parsed.get("rebuttal", "[Rebuttal missing]")
     except openai.RateLimitError:

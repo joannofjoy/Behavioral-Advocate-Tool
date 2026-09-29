@@ -100,7 +100,12 @@ if st.session_state.get("run"):
     # indented block underneath it is still running.
     with st.spinner("Thinking..."):
         session_id = st.session_state["session_id"]
-        tags = extract_tags(client, comment.strip(), draft.strip())
+        # Collects token/cost info from every LLM call made during this one
+        # interaction (tags, reply, and - if we get that far - rebuttal),
+        # so the totals can be logged alongside the rest of the record. See
+        # llm.py's _record_usage for what each entry looks like.
+        usage_log = []
+        tags = extract_tags(client, comment.strip(), draft.strip(), usage_log=usage_log)
         strats, matched_tags = filter_strategies_by_tags(strategies, tags)
         strat_block = (
             "\n".join(f"- {s['title']}: {s['description']}" for s in strats)
@@ -126,7 +131,7 @@ if st.session_state.get("run"):
         else:
             prompt = base_prompt
 
-        parsed = generate_reply(client, prompt, comment, draft)
+        parsed = generate_reply(client, prompt, comment, draft, usage_log=usage_log)
 
         user_in = json.dumps({"comment": comment, "draft_reply": draft})
         itype = parsed.input_type
@@ -168,10 +173,13 @@ if st.session_state.get("run"):
                 rating=rating_val,
                 written_feedback=feedback_txt,
                 session_id=session_id,
+                usage_details=usage_log,
+                tokens_used=sum(u["total_tokens"] or 0 for u in usage_log),
+                cost_usd=sum(u["cost"] or 0 for u in usage_log),
             )
             st.session_state.run = False
             st.rerun()
-        rebuttal = generate_rebuttal(client, msg, comment)
+        rebuttal = generate_rebuttal(client, msg, comment, usage_log=usage_log)
 
         st.session_state.history.append(
             {
@@ -206,6 +214,9 @@ if st.session_state.get("run"):
             written_feedback=feedback_txt,
             session_id=session_id,
             rebuttal=rebuttal,
+            usage_details=usage_log,
+            tokens_used=sum(u["total_tokens"] or 0 for u in usage_log),
+            cost_usd=sum(u["cost"] or 0 for u in usage_log),
         )
 
         st.session_state.run = False
