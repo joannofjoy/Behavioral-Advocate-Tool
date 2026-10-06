@@ -68,7 +68,6 @@ def log_to_firestore(
     rating=None,
     rating_confirmed=False,
     written_feedback=None,
-    rebuttal=None,
     confidence_score=None,
     evaluation_justification=None,
     suggested_improvements=None,
@@ -117,7 +116,6 @@ def log_to_firestore(
         # without guessing from timestamps.
         "rating_confirmed": rating_confirmed,
         "written_feedback": written_feedback,
-        "rebuttal": rebuttal,
         "confidence_score": confidence_score,
         "evaluation_justification": evaluation_justification,
         "suggested_improvements": suggested_improvements,

@@ -3,10 +3,10 @@
 # server). It has three jobs, matching the three prompt files in this repo:
 #   - extract_tags: read the conversation and label its emotional tone
 #     (prompt1.txt)
+#   - assess_engagement: judge whether a comment is worth a genuine
+#     persuasive reply at all (prompt4.txt)
 #   - generate_reply: write the persuasive reply itself (prompt2.txt, built
 #     by app.py using the strategies picked out in strategies.py)
-#   - generate_rebuttal: play devil's advocate against our own reply, so the
-#     user can see likely pushback in advance (prompt3.txt)
 
 import json
 import logging
@@ -19,7 +19,6 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from config import (
     MODEL_NAME,
     OPENROUTER_BASE_URL,
-    REBUTTAL_MAX_TOKENS,
     REPLY_MAX_TOKENS,
     REPLY_TEMPERATURE,
     TAG_EXTRACTION_MAX_TOKENS,
@@ -124,7 +123,7 @@ def _record_usage(response, usage_log):
     exact dollar amount charged for that one call) - no special request
     parameters needed, it's always there. "usage_log" is a plain list the
     caller can pass in to collect these across the several calls that make
-    up one interaction (tag extraction, reply, rebuttal); if usage_log is
+    up one interaction (tag extraction, engagement assessment, reply); if usage_log is
     None (the default - e.g. eval/run_eval.py doesn't pass one, since it
     doesn't care about cost tracking), this simply does nothing.
     """
@@ -293,49 +292,3 @@ def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=N
             follow_up_question="Something went wrong generating a reply. Please try again.",
             raw_text=content,
         )
-
-
-def generate_rebuttal(client, reply: str, comment: str, model=MODEL_NAME, usage_log=None) -> str:
-    """Ask GPT to play skeptic and push back on our own reply.
-
-    Returns the rebuttal text, or an empty string if generation fails.
-    "model" defaults to the app's configured MODEL_NAME - see extract_tags
-    above for why it's a parameter. "usage_log" is optional - see
-    _record_usage above.
-    """
-    try:
-        rebuttal_prompt = load_prompt("prompt3.txt").format(reply=reply, comment=comment)
-        r = _create_completion(
-            client,
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    # Two string literals written next to each other like
-                    # this are automatically joined into one string by
-                    # Python - it's just a way to keep long lines short.
-                    "content": (
-                        "You are a skeptical, articulate critic of vegan "
-                        "arguments, tasked with challenging the assistant’s "
-                        "message."
-                    ),
-                },
-                {"role": "user", "content": rebuttal_prompt},
-            ],
-            temperature=REPLY_TEMPERATURE,
-            max_tokens=REBUTTAL_MAX_TOKENS,
-        )
-        _record_usage(r, usage_log)
-        parsed = parse_json_object(r.choices[0].message.content)
-        return parsed.get("rebuttal", "[Rebuttal missing]")
-    except openai.RateLimitError:
-        logger.exception("Rebuttal generation rate-limited")
-        st.warning(_RATE_LIMIT_MESSAGE)
-        return ""
-    except Exception:
-        # The exception details go to the server log only (logger.exception
-        # records the full traceback); the on-screen message stays generic
-        # so a public visitor never sees internal error text.
-        logger.exception("Rebuttal generation failed")
-        st.warning("⚠️ Rebuttal generation failed.")
-        return ""

@@ -24,7 +24,7 @@ A major challenge in animal advocacy is that even the most well-intentioned mess
 - Takes user input - comments that need a reply to and/or a draft reply from the user
 - Extracts tags from input and matches relevant advocacy strategies
 - Generates persuasive responses
-- Generates rebuttals and evaluates persuasiveness
+- Explains the behavioral science technique used and why it fits the situation
 - Accepts feedback and allows regeneration based on feedback
 - Logs sessions for feedback and improvement 
 
@@ -34,11 +34,11 @@ A major challenge in animal advocacy is that even the most well-intentioned mess
 
 - **Strategy Matching with RAG** - Uses Retrieval-Augmented Generation to instantly connect your conversation context with a curated library of behavioral science–backed advocacy strategies.
 
-- **Multi-Step Prompt Chaining** - Breaks the task into expert stages: tag extraction → strategy selection → persuasive reply → rebuttal → improvement suggestions.
+- **Multi-Step Prompt Chaining** - Breaks the task into expert stages: tag extraction → strategy selection → persuasive reply → feedback-driven regeneration.
 
 - **AI-Optimized Persuasion** - Crafts replies using proven psychological principles to avoid defensiveness, build rapport, and encourage openness to animal-friendly choices.
 
-- **Built-In Skeptical Rebuttals** - Anticipates pushback by generating strong counter-arguments to your own reply, so you’re ready for any response.
+- **Educational Explanations** - Every reply comes with an explanation naming the specific behavioral science technique used and why it fits the situation, so advocates learn as they go, not just copy-paste a message.
 
 - **Feedback-Driven Regeneration** - Takes your rating and written feedback to produce a sharper, more targeted reply that better fits your advocacy style.
 
@@ -62,8 +62,7 @@ This prototype showcases a small sample of behavioral and communication techniqu
 2. Optionally, write your own draft reply.
 3. The assistant will:
    - Generate a persuasive response using behavioral strategies.
-   - Explain why the reply is persuasive.
-   - Provide a possible skeptical rebuttal.
+   - Explain which technique it used and why it fits the situation.
 4. You can rate the reply, you can also provide feedback to regenerate an improved reply.
 5. The assistant will provide a further improved reply.
 

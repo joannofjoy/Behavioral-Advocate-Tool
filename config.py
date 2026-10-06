@@ -45,9 +45,10 @@ TAG_EXTRACTION_TEMPERATURE = 0.3
 TAG_EXTRACTION_MAX_TOKENS = 100
 
 REPLY_TEMPERATURE = 0.7
-REPLY_MAX_TOKENS = 400
-
-REBUTTAL_MAX_TOKENS = 400
+# Raised from 400 now that the explanation field is meant to be genuinely
+# educational (naming techniques and reasoning), not just a short summary -
+# the old cap risked truncating a fuller explanation into invalid JSON.
+REPLY_MAX_TOKENS = 600
 
 STRATEGIES_PATH = "strategies.json"
 

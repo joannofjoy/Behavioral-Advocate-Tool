@@ -41,7 +41,7 @@ Effective techniques to use:
 5. Use emotionally resonant, hopeful, and inclusive framing.
 
 
-Apart from the message, formulate an accessible explanation of why the message is persuasive or what techniques were used. If provided initially with both a comment and a draft reply, in explanation provide a justification what was improved and what was left. Never mention specific strategies names, if needed just describe them.
+Apart from the message, formulate an educational explanation for the advocate using this tool (not for the person they're replying to) - this should genuinely teach them something about behavioral science, not just summarize the reply. Name the specific technique(s) actually used from the strategies list above, including where they come from (e.g. "the identifiable victim effect (Paul Slovic)" or "moral reframing (Feinberg & Willer)"), and explain briefly why that technique fits this particular situation - what about the comment or audience made it the right choice here. If provided initially with both a comment and a draft reply, also explain what was improved and why, and what was intentionally left unchanged. Write 2-4 sentences, like a behavioral science mentor explaining their reasoning, not a one-line summary.
 ---
 
 You will receive two inputs as a JSON object:

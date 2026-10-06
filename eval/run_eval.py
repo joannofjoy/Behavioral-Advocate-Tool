@@ -1,10 +1,10 @@
-# Runs the app's real three-step chain (tag extraction -> strategy match ->
-# reply -> rebuttal) against every case in cases.json, once per candidate
-# model, and asks a fixed judge model to score each result against the
-# rubric in rubric.py. Meant to be run by hand whenever a prompt changes or
-# a new model is worth trying - not part of the automated test suite, since
-# it makes real (sometimes paid) API calls and its results depend on
-# whatever the models happen to return that day.
+# Runs the app's real chain (tag extraction -> strategy match -> reply)
+# against every case in cases.json, once per candidate model, and asks a
+# fixed judge model to score each result against the rubric in rubric.py.
+# Meant to be run by hand whenever a prompt changes or a new model is
+# worth trying - not part of the automated test suite, since it makes real
+# (sometimes paid) API calls and its results depend on whatever the models
+# happen to return that day.
 #
 # Usage: python -m eval.run_eval
 
@@ -12,7 +12,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from llm import extract_tags, generate_rebuttal, generate_reply, get_llm_client, load_prompt
+from llm import extract_tags, generate_reply, get_llm_client, load_prompt
 from strategies import filter_strategies_by_tags, load_strategies
 
 from .judge import JudgeScores, judge_output
@@ -56,14 +56,11 @@ def run_case(client, model, case, strategies):
     tags = extract_tags(client, comment, draft, model=model)
     strats, _matched_tags = filter_strategies_by_tags(strategies, tags)
     strat_block = (
-        "\n".join(f"- {s['title']}: {s['description']}" for s in strats) or "No strategies matched."
+        "\n".join(f"- {s['title']} (source: {s['source']}): {s['description']}" for s in strats)
+        or "No strategies matched."
     )
     prompt = load_prompt("prompt2.txt").format(formatted_strategies=strat_block)
     reply = generate_reply(client, prompt, comment, draft, model=model)
-
-    rebuttal = ""
-    if not reply.needs_clarification and reply.message:
-        rebuttal = generate_rebuttal(client, reply.message, comment, model=model)
 
     # Skip the judge call entirely when the model returned nothing at all -
     # there's nothing meaningful to score, and it saves a judge-model call.
@@ -78,7 +75,6 @@ def run_case(client, model, case, strategies):
         "tags": tags,
         "matched_strategies": [s["title"] for s in strats],
         "reply": reply.model_dump(),
-        "rebuttal": rebuttal,
         "scores": scores.model_dump(),
     }
 

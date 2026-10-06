@@ -19,8 +19,8 @@ def test_fenced_json_block():
 
 
 def test_fenced_without_json_tag():
-    text = '```\n{"rebuttal": "- point one"}\n```'
-    assert parse_json_object(text) == {"rebuttal": "- point one"}
+    text = '```\n{"explanation": "- point one"}\n```'
+    assert parse_json_object(text) == {"explanation": "- point one"}
 
 
 def test_json_with_surrounding_prose():

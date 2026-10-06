@@ -20,7 +20,6 @@ from firebase_logger import init_firebase, log_to_firestore
 from llm import (
     assess_engagement,
     extract_tags,
-    generate_rebuttal,
     generate_reply,
     get_llm_client,
     load_prompt,
@@ -171,8 +170,8 @@ if st.session_state.get("run"):
     with st.spinner("Thinking..."):
         session_id = st.session_state["session_id"]
         # Collects token/cost info from every LLM call made during this one
-        # interaction (tags, reply, and - if we get that far - rebuttal),
-        # so the totals can be logged alongside the rest of the record. See
+        # interaction (tags, engagement assessment, and reply), so the
+        # totals can be logged alongside the rest of the record. See
         # llm.py's _record_usage for what each entry looks like.
         usage_log = []
         tags = extract_tags(client, comment.strip(), draft.strip(), usage_log=usage_log)
@@ -185,8 +184,13 @@ if st.session_state.get("run"):
             else None
         )
         strats, matched_tags = filter_strategies_by_tags(strategies, tags)
+        # Includes each strategy's source (e.g. "Faunalytics", "Paul
+        # Slovic") alongside its description, not just the description
+        # alone - the explanation field is meant to teach the user
+        # something, and naming where a technique comes from makes that
+        # explanation genuinely informative rather than a vague summary.
         strat_block = (
-            "\n".join(f"- {s['title']}: {s['description']}" for s in strats)
+            "\n".join(f"- {s['title']} (source: {s['source']}): {s['description']}" for s in strats)
             or "No strategies matched."
         )
 
@@ -232,7 +236,6 @@ if st.session_state.get("run"):
                     "justification": just,
                     "matched_tags": matched_tags,
                     "strategies": strats,
-                    "rebuttal": None,
                     "confidence_score": None,
                     "evaluation_justification": None,
                     "suggested_improvements": None,
@@ -266,7 +269,6 @@ if st.session_state.get("run"):
             )
             st.session_state.run = False
             st.rerun()
-        rebuttal = generate_rebuttal(client, msg, comment, usage_log=usage_log)
 
         st.session_state.history.append(
             {
@@ -278,7 +280,6 @@ if st.session_state.get("run"):
                 "justification": just,
                 "matched_tags": matched_tags,
                 "strategies": strats,
-                "rebuttal": rebuttal,
                 "session_id": session_id,
                 "engagement_reason": (
                     engagement.reason if engagement and not engagement.worth_engaging else None
@@ -304,7 +305,6 @@ if st.session_state.get("run"):
             rating_confirmed=st.session_state.rating_touched,
             written_feedback=feedback_txt,
             session_id=session_id,
-            rebuttal=rebuttal,
             usage_details=usage_log,
             tokens_used=sum(u["total_tokens"] or 0 for u in usage_log),
             cost_usd=sum(u["cost"] or 0 for u in usage_log),
@@ -323,7 +323,7 @@ if st.session_state.history:
         # Only one reply exists yet, so just show it - no need for the
         # "previous versions" browser below.
         #
-        # The reply/explanation/rebuttal text below comes from GPT, and
+        # The reply/explanation text below comes from GPT, and
         # GPT's output is itself shaped by whatever the visitor typed in as
         # the comment/draft - so it isn't fully trusted. html.escape(...)
         # converts characters like < and > into their safe HTML entities
@@ -346,12 +346,6 @@ if st.session_state.history:
             f"{html.escape(latest['explanation'])}</div>",
             unsafe_allow_html=True,
         )
-        if latest.get("rebuttal"):
-            st.markdown(
-                f"<div class='reply-line'><span class='reply-label'>Possible rebuttal:</span>"
-                f"{html.escape(latest['rebuttal'])}</div>",
-                unsafe_allow_html=True,
-            )
 
     else:
         # More than one reply exists (the user regenerated at least once),
@@ -379,13 +373,6 @@ if st.session_state.history:
                 f"{html.escape(latest['explanation'])}</div>",
                 unsafe_allow_html=True,
             )
-            if latest.get("rebuttal"):
-                st.markdown(
-                    f"<div class='reply-line'>"
-                    f"<span class='reply-label'>Possible rebuttal:</span>"
-                    f"{html.escape(latest['rebuttal'])}</div>",
-                    unsafe_allow_html=True,
-                )
 
         with col2:
             total_versions = len(st.session_state.history) - 1  # Exclude latest
@@ -441,13 +428,6 @@ if st.session_state.history:
                     f"{html.escape(selected['explanation'])}</div>",
                     unsafe_allow_html=True,
                 )
-                if selected.get("rebuttal"):
-                    st.markdown(
-                        f"<div class='reply-line'>"
-                        f"<span class='reply-label'>Possible rebuttal:</span>"
-                        f"{html.escape(selected['rebuttal'])}</div>",
-                        unsafe_allow_html=True,
-                    )
             else:
                 st.info("No previous versions yet.")
 
