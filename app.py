@@ -15,7 +15,7 @@ import uuid
 
 import streamlit as st
 
-from config import MAX_GENERATIONS_PER_SESSION, MAX_INPUT_CHARS
+from config import MAX_GENERATIONS_PER_SESSION, MAX_INPUT_CHARS, TESTING_MODE
 from firebase_logger import init_firebase, log_to_firestore
 from llm import (
     assess_engagement,
@@ -23,6 +23,7 @@ from llm import (
     generate_reply,
     get_llm_client,
     load_prompt,
+    score_reply_quality,
 )
 from strategies import filter_strategies_by_tags, load_strategies
 
@@ -103,12 +104,21 @@ strategies = load_strategies()
 st.html(
     """
     <style>
-    .block-container { padding-top: 2rem; }
+    .block-container { padding-top: 1rem; padding-bottom: 1rem; }
     /* Streamlit's own stylesheet styles h1 with higher specificity than a
        plain tag selector, so !important is needed for this to actually win. */
-    h1 { font-size: 1.5rem !important; margin-bottom: 0.5rem !important; }
-    .reply-line { font-size: 0.9rem; margin-bottom: 0.5rem; }
+    h1 { font-size: 1.5rem !important; margin-bottom: 0.25rem !important; }
+    h3 { margin-top: 0.5rem !important; margin-bottom: 0.25rem !important; }
+    .reply-line { font-size: 0.9rem; margin-bottom: 0.4rem; }
     .reply-label { font-weight: bold; margin-right: 0.25rem; }
+    /* Streamlit puts a fairly generous default gap between every element
+       on the page (the comment box, the button, each reply line, the
+       feedback widgets, ...) - tightening it here is the single biggest
+       lever for fitting more content in one screen without touching any
+       individual element. */
+    [data-testid="stVerticalBlock"] { gap: 0.5rem !important; }
+    hr { margin: 0.5rem 0 !important; }
+    div[data-testid="stButton"] button { padding-top: 0.25rem; padding-bottom: 0.25rem; }
     </style>
 """
 )
@@ -130,6 +140,7 @@ comment = st.text_area(
     "What did the other person say? Who are they? Any additional context?",
     key="comment_input",
     placeholder="Paste the other person's comment and add any additional context here...",
+    height=80,
 )
 
 with st.expander("Optional: Your draft reply"):
@@ -140,6 +151,7 @@ with st.expander("Optional: Your draft reply"):
             "Write your reply draft here, or leave blank for the assistant to generate it..."
         ),
         label_visibility="collapsed",
+        height=80,
     )
 
 if st.button("Generate a reply"):
@@ -266,9 +278,16 @@ if st.session_state.get("run"):
                 relationship_context=audience,
                 worth_engaging=engagement.worth_engaging if engagement else None,
                 engagement_reason=engagement.reason if engagement else None,
+                is_test=TESTING_MODE,
             )
             st.session_state.run = False
             st.rerun()
+
+        # Quietly score the reply for internal quality monitoring - never
+        # shown in the UI, just logged for later analysis. Uses a separate
+        # fixed judge model (see llm.score_reply_quality) rather than the
+        # model that wrote the reply.
+        quality_scores = score_reply_quality(client, comment, msg, usage_log=usage_log)
 
         st.session_state.history.append(
             {
@@ -311,6 +330,8 @@ if st.session_state.get("run"):
             relationship_context=audience,
             worth_engaging=engagement.worth_engaging if engagement else None,
             engagement_reason=engagement.reason if engagement else None,
+            quality_scores=quality_scores.model_dump(),
+            is_test=TESTING_MODE,
         )
 
         st.session_state.run = False
@@ -433,18 +454,18 @@ if st.session_state.history:
 
     st.markdown("---")
     st.markdown("### Feedback")
-    rate = st.slider(
-        "How do you like the most recent response?",
-        1,
-        5,
-        3,
-        key="rating_input",
-        on_change=_mark_rating_touched,
-    )
-    fb = st.text_area("Optional feedback (used only if you regenerate):", key="fb_input")
-    # Only treat the rating as real if the slider was actually moved -
-    # otherwise it's just sitting at its default value, not a deliberate
-    # opinion, and shouldn't be logged as though it were one.
+    # st.feedback("stars") is Streamlit's purpose-built rating widget - a
+    # compact row of star icons instead of a full-width slider, and it
+    # natively returns None until the user actually clicks one (unlike the
+    # old slider, which always reported a default value of 3 whether
+    # touched or not). "stars" returns a 0-based index (0 = one star), so
+    # +1 converts it back to the 1-5 scale the rest of the app expects.
+    stars = st.feedback("stars", key="rating_input", on_change=_mark_rating_touched)
+    rate = stars + 1 if stars is not None else None
+    fb = st.text_area("Optional feedback (used only if you regenerate):", key="fb_input", height=68)
+    # Only treat the rating as real if a star was actually clicked -
+    # otherwise nothing has been selected yet, not a deliberate opinion,
+    # and shouldn't be logged as though it were one.
     st.session_state.rating = rate if st.session_state.rating_touched else None
     st.session_state.feedback = fb
 

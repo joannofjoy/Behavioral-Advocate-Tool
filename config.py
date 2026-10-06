@@ -38,6 +38,13 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # eval/run_eval.py (scored 4.3-5.0/5 across every rubric dimension).
 MODEL_NAME = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 
+# A separate, fixed, more capable model used only to score reply quality
+# in the background (see llm.score_reply_quality) - deliberately not the
+# same model that wrote the reply, since a model grading its own work is a
+# known bias risk. Same reasoning eval/judge.py already applies when
+# comparing candidate models, just applied to live production replies too.
+QUALITY_JUDGE_MODEL = "openai/gpt-4o"
+
 # "Temperature" controls how random/creative the model's replies are: 0 is
 # very predictable and repetitive, 1 is much more varied. "max_tokens" caps
 # how long the model's reply is allowed to be.
@@ -57,6 +64,13 @@ STRATEGIES_PATH = "strategies.json"
 # browser session is allowed to generate.
 MAX_INPUT_CHARS = 2000
 MAX_GENERATIONS_PER_SESSION = 15
+
+# Set to "true" in a local .env (never on Streamlit Cloud) to flag every
+# session from this run as test data rather than real visitor traffic.
+# There's no way to reconstruct this after the fact - Firestore records
+# never captured any IP/device info - so this exists to mark it going
+# forward instead, letting future analysis cleanly exclude test sessions.
+TESTING_MODE = os.getenv("TESTING_MODE", "false").lower() == "true"
 
 
 def get_llm_api_key():

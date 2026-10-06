@@ -88,5 +88,47 @@
     "comment": "Look, I get that factory farming has issues, but humans are omnivores, our teeth are made for meat, plants feel pain too if you actually look into it, and honestly the whole vegan movement feels more like a trend than an ethical stance. Also I tried it for a month once and just felt awful the whole time.",
     "draft": "",
     "note": "Longer, multi-point input - checks the reply picks a focus rather than trying to rebut every point."
+  },
+  {
+    "id": "mockery_with_substance",
+    "comment": "vegans are snowflakes that don't accept the realities of life, nature is rough, gotta be tough if we want to survive",
+    "draft": "",
+    "note": "Real logged test input (anonymized is unnecessary, written by the developer testing the app). Blends mockery with genuinely-held ideological content, harder to classify than pure trolling or pure skepticism - checks assess_engagement doesn't over- or under-flag it."
+  },
+  {
+    "id": "ex_vegan_accusatory",
+    "comment": "I used to be vegan but now i went on keto and 4 of my metabolic diseases got cured! i was so brainwashed by vegans, but now i see clearly.",
+    "draft": "",
+    "note": "Real logged test input. A more accusatory, specific ex-vegan case than the existing one - cites a specific alternative diet and dramatic health claims, and the word \"brainwashed\" implies manipulation rather than just a difficult experience."
+  },
+  {
+    "id": "dominance_logic_of_larder",
+    "comment": "thats just nature, we rule over animals so we get to eat them, but thanks to that they can even be alive",
+    "draft": "",
+    "note": "Real logged test input. Combines naturalistic framing, dominance/hierarchy, and the logic-of-the-larder argument in one comment - tests whether multiple matched strategies produce a coherent reply rather than a disjointed one."
+  },
+  {
+    "id": "protein_completeness_myth",
+    "comment": "only animal products have wholesome protein, plants dont have full protein profile so you cant meet your protein demands without meat",
+    "draft": "",
+    "note": "Real logged test input. A more specific/technical necessity claim (protein completeness) than the existing generic necessary case."
+  },
+  {
+    "id": "followup_in_thread",
+    "comment": "but those cultures didnt survive though",
+    "draft": "",
+    "note": "Real logged test input - a short follow-up continuing an exchange rather than a first-contact comment, without the prior context explicitly passed in. Checks the chain still produces something coherent on a terse, context-dependent fragment."
+  },
+  {
+    "id": "terse_dismissal",
+    "comment": "nah",
+    "draft": "",
+    "note": "Deliberately minimal input, distinct in kind from the real logged examples above - checks behavior on an extremely low-information comment, which should likely trigger clarification rather than a confident reply."
+  },
+  {
+    "id": "already_agreeable",
+    "comment": "You know, I've actually been thinking about cutting back on meat for a while now, just haven't gotten around to it.",
+    "draft": "",
+    "note": "Deliberately warm/receptive input, the opposite end of the spectrum from the resistant cases above - checks the reply doesn't over-apply persuasion techniques or sound pushy when the person is already open."
   }
 ]

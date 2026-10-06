@@ -19,6 +19,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from config import (
     MODEL_NAME,
     OPENROUTER_BASE_URL,
+    QUALITY_JUDGE_MODEL,
     REPLY_MAX_TOKENS,
     REPLY_TEMPERATURE,
     TAG_EXTRACTION_MAX_TOKENS,
@@ -69,6 +70,24 @@ class EngagementAssessment(BaseModel):
 
     worth_engaging: bool = True
     reason: str = ""
+
+
+class ReplyQualityScores(BaseModel):
+    """The shape we expect back from the quality-scoring prompt (prompt5.txt).
+
+    Scored by QUALITY_JUDGE_MODEL - a fixed, separate model from whatever
+    wrote the reply, since a model grading its own work is a known bias
+    risk (same reasoning eval/judge.py applies to the eval harness).
+    Everything defaults to 0 so a failed scoring call never breaks the
+    main reply flow - see score_reply_quality below.
+    """
+
+    sounds_human: int = 0
+    addresses_point: int = 0
+    specific_not_generic: int = 0
+    persuasiveness: int = 0
+    tone_non_confrontational: int = 0
+    notes: str = ""
 
 
 # Errors worth retrying: all of these are "transient" - a rate limit, a
@@ -292,3 +311,30 @@ def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=N
             follow_up_question="Something went wrong generating a reply. Please try again.",
             raw_text=content,
         )
+
+
+def score_reply_quality(client, comment, reply_message, usage_log=None):
+    """Score a generated reply for internal quality monitoring.
+
+    Always uses QUALITY_JUDGE_MODEL rather than whatever model wrote the
+    reply - see ReplyQualityScores above for why. This is meant to run
+    quietly after a reply already exists; nothing here is shown to the
+    person who wrote the original comment, and a failure here should never
+    disrupt the main reply the user already has in front of them, which is
+    why it fails to an all-zero score instead of raising or warning.
+    """
+    try:
+        prompt = load_prompt("prompt5.txt").format(comment=comment or "N/A", reply=reply_message)
+        r = _create_completion(
+            client,
+            model=QUALITY_JUDGE_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=200,
+        )
+        _record_usage(r, usage_log)
+        parsed = parse_json_object(r.choices[0].message.content)
+        return ReplyQualityScores.model_validate(parsed)
+    except Exception:
+        logger.exception("Reply quality scoring failed")
+        return ReplyQualityScores()

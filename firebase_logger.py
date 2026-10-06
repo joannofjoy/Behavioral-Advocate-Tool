@@ -78,6 +78,8 @@ def log_to_firestore(
     relationship_context=None,
     worth_engaging=None,
     engagement_reason=None,
+    quality_scores=None,
+    is_test=False,
 ):
     """Save one reply/session record to the "session_logs" collection.
 
@@ -136,6 +138,14 @@ def log_to_firestore(
         # to benefit from a genuine persuasive reply, and why not if not.
         "worth_engaging": worth_engaging,
         "engagement_reason": engagement_reason,
+        # Background quality scores from llm.score_reply_quality() - see
+        # llm.ReplyQualityScores for what each field means. None when there
+        # was no real reply to score (e.g. a clarification was needed).
+        "quality_scores": quality_scores,
+        # True only when TESTING_MODE was set in the environment this ran
+        # under - lets future analysis exclude deliberate testing sessions
+        # from real visitor data without having to guess from the content.
+        "is_test": is_test,
     }
     try:
         # uuid.uuid4() generates a random, practically-unique ID to use as
