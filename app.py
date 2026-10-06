@@ -104,7 +104,10 @@ strategies = load_strategies()
 st.html(
     """
     <style>
-    .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+    /* Streamlit's floating header toolbar (the hamburger/Deploy menu) is
+       fixed at the top of the page and about 60px tall - padding-top needs
+       to clear it, or the title renders mostly hidden underneath it. */
+    .block-container { padding-top: 4rem; padding-bottom: 1rem; }
     /* Streamlit's own stylesheet styles h1 with higher specificity than a
        plain tag selector, so !important is needed for this to actually win. */
     h1 { font-size: 1.5rem !important; margin-bottom: 0.25rem !important; }
@@ -119,6 +122,21 @@ st.html(
     [data-testid="stVerticalBlock"] { gap: 0.5rem !important; }
     hr { margin: 0.5rem 0 !important; }
     div[data-testid="stButton"] button { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+    /* Streamlit auto-stacks st.columns() into separate rows below a width
+       breakpoint, which would break the ◀ / "Previous Versions" / ▶ row
+       into three disconnected blocks on mobile. The "version_nav" keyed
+       container (wrapped around just that row in app.py) gets a
+       ".st-key-version_nav" class we can scope this override to, without
+       touching any other column layout in the app - !important is needed
+       here because Streamlit's own responsive rule wins otherwise. */
+    .st-key-version_nav [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; }
+    .st-key-version_nav [data-testid="stColumn"] {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+    .st-key-version_nav [data-testid="stColumn"]:nth-of-type(1),
+    .st-key-version_nav [data-testid="stColumn"]:nth-of-type(3) { flex: 1 1 0 !important; }
+    .st-key-version_nav [data-testid="stColumn"]:nth-of-type(2) { flex: 3.5 1 0 !important; }
     </style>
 """
 )
@@ -402,39 +420,50 @@ if st.session_state.history:
                 if "history_index" not in st.session_state:
                     st.session_state.history_index = 0
 
-                col_l, col_m, col_r = st.columns([1, 3.5, 1])
-                with col_l:
-                    # on_click takes a function to run when the button is
-                    # pressed. Here that function is a "lambda" - a small,
-                    # unnamed function written inline - which moves the
-                    # history browser one step back, but never below 0.
-                    st.button(
-                        " ◀ ",
-                        key="prev_btn",
-                        on_click=lambda: st.session_state.update(
-                            {"history_index": max(0, st.session_state.history_index - 1)}
-                        ),
-                        use_container_width=True,
-                    )
-                with col_m:
-                    st.markdown(
-                        "<div style='text-align:center; font-weight:bold;'>Previous Versions</div>",
-                        unsafe_allow_html=True,
-                    )
-                with col_r:
-                    st.button(
-                        " ▶ ",
-                        key="next_btn",
-                        on_click=lambda: st.session_state.update(
-                            {
-                                "history_index": min(
-                                    total_versions - 1,
-                                    st.session_state.history_index + 1,
-                                )
-                            }
-                        ),
-                        use_container_width=True,
-                    )
+                # st.columns() normally stacks into separate rows on narrow
+                # screens, which would break up the ◀ / label / ▶ row into
+                # three disconnected blocks on mobile. Wrapping it in a
+                # keyed container gives Streamlit's generated markup a
+                # distinctive CSS class (".st-key-version_nav") that the
+                # scoped rule up in the st.html() block at the top of this
+                # file uses to force this one row to stay horizontal,
+                # without affecting any other column layout in the app.
+                with st.container(key="version_nav"):
+                    col_l, col_m, col_r = st.columns([1, 3.5, 1])
+                    with col_l:
+                        # on_click takes a function to run when the button
+                        # is pressed. Here that function is a "lambda" - a
+                        # small, unnamed function written inline - which
+                        # moves the history browser one step back, but
+                        # never below 0.
+                        st.button(
+                            " ◀ ",
+                            key="prev_btn",
+                            on_click=lambda: st.session_state.update(
+                                {"history_index": max(0, st.session_state.history_index - 1)}
+                            ),
+                            use_container_width=True,
+                        )
+                    with col_m:
+                        st.markdown(
+                            "<div style='text-align:center; font-weight:bold;'>"
+                            "Previous Versions</div>",
+                            unsafe_allow_html=True,
+                        )
+                    with col_r:
+                        st.button(
+                            " ▶ ",
+                            key="next_btn",
+                            on_click=lambda: st.session_state.update(
+                                {
+                                    "history_index": min(
+                                        total_versions - 1,
+                                        st.session_state.history_index + 1,
+                                    )
+                                }
+                            ),
+                            use_container_width=True,
+                        )
 
                 selected = st.session_state.history[st.session_state.history_index]
                 st.markdown(
