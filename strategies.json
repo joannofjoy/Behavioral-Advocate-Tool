@@ -28,7 +28,7 @@
     "source": "Faunalytics + CEVA",
     "source_url": "https://faunalytics.org/how-to-become-a-more-effective-vegan-advocate/",
     "description": "Mention how many others share similar values or are making changes to reduce isolation.",
-    "tags": ["skeptical", "resistant", "uncertain"],
+    "tags": ["skeptical", "resistant", "uncertain", "normal"],
     "goals": ["normalization", "behavioral shift"]
   },
   {
@@ -126,5 +126,205 @@
     "description": "For someone already cutting back on meat but not fully vegetarian, affirm the choices they've already made and connect them to a wider meat-reducing movement, rather than treating them like an unconvinced omnivore. Taking pride in this identity is linked to actually going further, more than pointing out how many vegetarians they know.",
     "tags": ["flexitarian", "reducetarian"],
     "goals": ["identity reinforcement", "behavioral shift", "movement momentum"]
+  },
+  {
+    "title": "Use One Specific Story, Not Statistics",
+    "source": "Paul Slovic (identifiable victim effect / psychic numbing)",
+    "source_url": "https://en.wikipedia.org/wiki/Identifiable_victim_effect",
+    "description": "People feel more for one named, specific individual than for a mass of statistics, and the effect isn't additive - adding numbers to a personal story measurably dilutes the emotional response back toward the weaker statistics-only level. Lean on one concrete example and resist backing it up with facts and figures in the same breath.",
+    "tags": ["skeptical", "uncertain", "curious"],
+    "goals": ["emotional engagement", "persuasive reach"]
+  },
+  {
+    "title": "Invite Perspective-Taking, Not When Already Defensive",
+    "source": "Batson (perspective-taking); Sassenrath, Vorauer & Hodges (on when it backfires)",
+    "source_url": "https://www.sciencedirect.com/science/article/abs/pii/S2352250X2100169X",
+    "description": "Explicitly inviting someone to imagine how the animal experiences a situation increases empathic concern - but only when it doesn't feel threatening. On someone already defensive, the same invitation can backfire into more defensiveness instead. Reserve it for curious or open responses, not defensive ones.",
+    "tags": ["curious", "open"],
+    "goals": ["empathy", "perspective shift"]
+  },
+  {
+    "title": "Dissolve the Human-vs-Animal Tradeoff Frame",
+    "source": "Faunalytics (\"Empathy For Animals Does Not Have To Be Zero-Sum\")",
+    "source_url": "https://faunalytics.org/empathy-for-animals-does-not-have-to-be-zero-sum/",
+    "description": "When a comment frames animal welfare as competing with human needs (jobs, health, feeding people, tradition), reject that framing rather than arguing within it. Research shows that when caring about animals is presented as a forced tradeoff against human interests, people default to choosing humans - but when the same choice is reframed as non-competing, people engage with animal-directed empathy about equally. Show the two interests as compatible rather than conceding a real tradeoff exists.",
+    "tags": ["zero-sum", "practical concern", "defensive"],
+    "goals": ["reduce perceived cost", "reframe conflict", "reduce defensiveness"]
+  },
+  {
+    "title": "Reframe Around Purity, Loyalty, or Duty - Not Compassion",
+    "source": "Feinberg & Willer (moral reframing); Dhont, Hodson & Leite (SD-HARM)",
+    "source_url": "https://ccare.stanford.edu/wp-content/uploads/2015/06/Feinberg-and-Willer-2013-The-moral-roots-of-environmental-attitudes.pdf",
+    "description": "For someone expressing a belief in human superiority or hierarchy over animals (not just skepticism, but an ideological commitment), standard compassion-based appeals are documented to be less effective - this audience doesn't weight the \"care\" moral foundation heavily. Reframe around values they do prioritize instead: purity (factory farming as a corrupting, unnatural practice), loyalty (protecting family and community health), or duty (responsible stewardship, not domination for its own sake).",
+    "tags": ["dominance", "hierarchy", "human-superiority"],
+    "goals": ["values alignment", "persuasive reach"]
+  },
+  {
+    "title": "Correct the Necessity Myth, Respectfully",
+    "source": "Piazza, Ruby, Loughnan et al. (the \"4Ns\" of meat justification, 2015)",
+    "source_url": "https://faunalytics.org/rationalizing-meat-consumption-the-4ns/",
+    "description": "When someone says meat is necessary for health or protein, correct this factually but warmly rather than dismissively - major health organizations confirm a well-planned plant-based diet meets nutritional needs, and the existence of healthy long-term vegetarians and vegans is itself evidence against the necessity claim. No need to argue the point aggressively.",
+    "tags": ["necessary", "health concern"],
+    "goals": ["correct misinformation", "reduce defensiveness"]
+  },
+  {
+    "title": "Gently Question the Appeal to Nature",
+    "source": "Piazza, Ruby, Loughnan et al. (the \"4Ns\"); appeal-to-nature fallacy literature",
+    "source_url": "https://www.animal-ethics.org/the-objection-that-eating-animals-is-natural/",
+    "description": "When someone argues eating meat is justified because it's \"natural\" or what our ancestors did, gently point out that natural doesn't automatically mean good or right, without turning it into a logic lecture. Plenty of things people value, like medicine and modern comforts, aren't \"natural\" either - the goal is to loosen the assumption, not win a philosophy argument.",
+    "tags": ["natural", "tradition"],
+    "goals": ["challenge assumption", "reduce reactance"]
+  },
+  {
+    "title": "Meet the Taste Objection With Real Alternatives",
+    "source": "Piazza, Ruby, Loughnan et al. (the \"4Ns\" of meat justification, 2015)",
+    "source_url": "https://faunalytics.org/rationalizing-meat-consumption-the-4ns/",
+    "description": "When someone's real objection is simply that they like how meat tastes, don't dismiss that as shallow - it's one of the most common and honest reasons people give. Acknowledge it directly and point to specific plant-based options or recipes that are genuinely satisfying, rather than arguing they shouldn't care about taste.",
+    "tags": ["taste", "cost concern"],
+    "goals": ["practical solution", "reduce reactance"]
+  },
+  {
+    "title": "Turn Your Claim Into a Question (Socratic Reframe)",
+    "source": "Ed Winters (\"Earthling Ed\") - Socratic Method",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Instead of stating your point directly, rephrase it as a genuine question that leads the other person toward the conclusion themselves - e.g. \"Do you think there's a humane way to kill an animal who doesn't want to die?\" rather than \"there's no humane way to kill an animal.\" People are more receptive to conclusions they reach on their own, and whatever they answer, they know it's genuinely their own view.",
+    "tags": ["defensive", "skeptical", "resistant"],
+    "goals": ["self-persuasion", "reduce defensiveness", "promote reflection"]
+  },
+  {
+    "title": "Validate Real Barriers, Then Reframe Imperfect Effort as Building Access",
+    "source": "Internal (Joanna's own formulation)",
+    "source_url": "",
+    "description": "Acknowledge honestly that going vegan can be genuinely difficult at times, not because a plant-based diet is unhealthy (it's well-established that it can be healthy), but because food systems are built around animal products and accessible options are still limited in some places. Then reframe: even without being 100% plant-based, demand for vegan options helps shift that system over time, making plant-based living more accessible for everyone, including the person you're talking to, and ultimately helps more animals than insisting on purity would.",
+    "tags": ["overwhelmed", "cost concern", "access concern"],
+    "goals": ["validate difficulty", "reduce reactance", "systemic framing", "sustainable effort"]
+  },
+  {
+    "title": "Highlight the Love-Exploit Contradiction, Gently",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Can you love animals and eat them?\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "When someone describes themselves as an animal lover while eating animal products, gently note that the two can be hard to reconcile, using a relatable comparison rather than a harsh one. Invite reflection on the inconsistency rather than flatly asserting hypocrisy.",
+    "tags": ["inconsistency", "identity"],
+    "goals": ["promote reflection", "self-persuasion"]
+  },
+  {
+    "title": "Reframe 'Personal Choice' as Involving Someone Else",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Eating animal products is my personal choice\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "When someone frames eating animals as purely their own business, gently note that unlike most personal choices, this one involves another being who doesn't get a say. Affirm that respecting others' views matters to you too, including, gently, the animal's.",
+    "tags": ["personal-choice", "defensive"],
+    "goals": ["reframe assumption", "reduce defensiveness"]
+  },
+  {
+    "title": "Address the Overpopulation Worry With the Real Mechanism",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Animals would overrun us or go extinct\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Explain that farmed animal populations are intentionally bred at today's high numbers specifically for consumption. If demand dropped, breeding would drop accordingly rather than animals \"taking over\" - and wild animal populations aren't tied to farm animal numbers at all.",
+    "tags": ["overpopulation", "uncertain"],
+    "goals": ["correct misinformation", "reduce uncertainty"]
+  },
+  {
+    "title": "Address the 'Plants Feel Pain' Claim With the Actual Science",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Plants feel pain\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Note that plants lack the central nervous system current science associates with the subjective experience of pain. Also worth mentioning if it fits naturally: farmed animals are fed many times their own weight in crops, so eating plants directly actually means fewer plants consumed overall, not more.",
+    "tags": ["plant-pain", "skeptical"],
+    "goals": ["correct misinformation", "reduce defensiveness"]
+  },
+  {
+    "title": "Affirm Animal Sentience With Accessible Science",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Animals don't feel pain & don't suffer the same as we do\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Point to the broad scientific and veterinary consensus that farmed mammals, birds, and fish have nervous systems and pain responses closely comparable to ours. A brief, confident correction lands better than an exhaustive one.",
+    "tags": ["animal-sentience", "skeptical"],
+    "goals": ["correct misinformation", "empathy"]
+  },
+  {
+    "title": "Counter the 'We Gave Them a Life' Argument",
+    "source": "Ed Winters (\"Earthling Ed\") - \"We're doing animals a favour by giving them a life\" / \"Animals are bred for a purpose\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Gently question whether a short life engineered for slaughter is really a favor, rather than something the animal would choose for itself if it could. This works best phrased as a genuine question (see the Socratic Reframe strategy) rather than a flat assertion.",
+    "tags": ["logic-of-the-larder", "defensive"],
+    "goals": ["promote reflection", "self-persuasion"]
+  },
+  {
+    "title": "Welcome Welfare Improvements as a Step, Not a Stopping Point",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Can't we just improve the lives of animals?\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Affirm that welfare improvements do reduce real suffering and are worth supporting, while gently noting that the use and killing itself remains the core issue. Avoid framing welfare reforms as worthless, since that alienates people already moving in the right direction.",
+    "tags": ["welfarism", "curious"],
+    "goals": ["values alignment", "incremental change"]
+  },
+  {
+    "title": "Meet Moral Relativism With a Shared Reference Point",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Morality is subjective\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Rather than arguing abstract moral philosophy, point to a value almost everyone already holds, like unnecessary suffering being bad, and ask whether it applies consistently here. Shared ground works better than a debate about whether morality exists at all.",
+    "tags": ["moral-relativism", "skeptical"],
+    "goals": ["values alignment", "promote reflection"]
+  },
+  {
+    "title": "Question What 'Moderation' Actually Means Here",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Everything in moderation\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Gently ask what moderate consumption of a product tied to suffering would actually look like from the animal's perspective, since moderation doesn't reduce the harm to any individual animal killed. Ask it as a genuine question, not a gotcha.",
+    "tags": ["moderation-deflection", "resistant"],
+    "goals": ["promote reflection", "challenge assumption"]
+  },
+  {
+    "title": "Redirect Extreme Hypotheticals to the Real Choice at Hand",
+    "source": "Ed Winters (\"Earthling Ed\") - \"What if you were stranded on a desert island?\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Acknowledge the hypothetical briefly, then redirect to the actual choice in front of them, a grocery store, not a desert island. Extreme edge cases rarely reflect anyone's real situation, and over-engaging them can derail a conversation that was otherwise going somewhere.",
+    "tags": ["hypothetical-scenario", "resistant"],
+    "goals": ["reframe conflict", "relevance"]
+  },
+  {
+    "title": "Acknowledge Vegetarianism as Progress, Note the Remaining Gap",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Isn't being vegetarian enough?\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Affirm that vegetarianism is a meaningful step that already reduces harm, while briefly noting that dairy and egg production still involve animal suffering comparable to meat. Lead with genuine appreciation, not a corrective tone.",
+    "tags": ["vegetarian", "sufficiency"],
+    "goals": ["values alignment", "incremental change"]
+  },
+  {
+    "title": "Name the Fallacy Lightly, Redirect to the Argument",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Hitler was a vegetarian/I once knew a vegan who wasn't very nice\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "When someone dismisses veganism based on one vegan's behavior or an unrelated person's other beliefs, gently note that the case for animals stands on its own regardless of any individual advocate's character, then redirect back to the actual question.",
+    "tags": ["ad-hominem", "mocking"],
+    "goals": ["reframe conflict", "reduce defensiveness"]
+  },
+  {
+    "title": "Correct the Soy Deforestation Myth With the Real Numbers",
+    "source": "Ed Winters (\"Earthling Ed\") - \"Soya farming is destroying the environment\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Most soy grown worldwide feeds farmed animals, not people eating plant-based directly. A plant-based diet requires significantly less soy cultivation than the current system, not more. State this plainly as a factual correction, not a debate.",
+    "tags": ["soy-myth", "environmental"],
+    "goals": ["correct misinformation", "reduce defensiveness"]
+  },
+  {
+    "title": "Engage Religious Justification Through Shared Values, Not Confrontation",
+    "source": "Ed Winters (\"Earthling Ed\") - \"God says that we can eat animals\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Many faith traditions also emphasize compassion, mercy, and stewardship of creation. Frame the conversation around those existing values rather than disputing someone's faith directly, since that's far more likely to be heard.",
+    "tags": ["religious-justification", "tradition"],
+    "goals": ["values alignment", "reduce defensiveness"]
+  },
+  {
+    "title": "Validate the Social Fear, Separate It From the Decision Itself",
+    "source": "Ed Winters (\"Earthling Ed\") - \"My friends and family won't like it if I go vegan\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Acknowledge that worrying about friends' or family's reactions is a real, valid concern, not a silly one. Then gently separate that social fear from the actual question of what's right, since most relationships survive a dietary change even when the initial reaction is resistance.",
+    "tags": ["social-cost", "overwhelmed"],
+    "goals": ["validate difficulty", "reduce reactance"]
+  },
+  {
+    "title": "Counter Futility With the Actual Mechanism of Change",
+    "source": "Ed Winters (\"Earthling Ed\") - \"One person can't make a difference\"",
+    "source_url": "https://www.all-creatures.org/articles2/act-earthling-ed.pdf",
+    "description": "Explain concretely how individual demand shifts supply over time, the same mechanism behind the \"Validate Real Barriers\" strategy, and that movements are made of individuals making this exact same call. Their one choice adds to a real, measurable trend.",
+    "tags": ["futility", "overwhelmed"],
+    "goals": ["systemic framing", "sustainable effort"]
   }
 ]

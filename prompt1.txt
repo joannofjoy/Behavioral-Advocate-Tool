@@ -3,7 +3,7 @@ You are a tag classifier for an AI assistant. Given this input:
 Comment: {comment}
 Draft: {draft}
 
-Return a JSON list of 1–5 relevant tags that describe the emotional or messaging context. Use simple words like: angry, skeptical, defensive, curious, moral outrage, vegetarian, identity, confused, tradition, environmental, cost concern, ex-vegan, health concern, flexitarian, etc.
+Return a JSON list of 1–5 relevant tags that describe the emotional or messaging context. Use simple words like: angry, skeptical, defensive, curious, moral outrage, vegetarian, identity, confused, tradition, environmental, cost concern, ex-vegan, health concern, flexitarian, zero-sum, dominance, hierarchy, human-superiority, natural, necessary, normal, taste, access concern, inconsistency, personal-choice, overpopulation, plant-pain, animal-sentience, logic-of-the-larder, welfarism, moral-relativism, moderation-deflection, hypothetical-scenario, sufficiency, ad-hominem, soy-myth, religious-justification, social-cost, futility, etc.
 
 Example:
 ["skeptical", "identity", "open"]
