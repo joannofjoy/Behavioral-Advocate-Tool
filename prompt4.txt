@@ -1,0 +1,18 @@
+You are assessing whether a comment is worth a genuine persuasive reply, for an animal advocacy assistant.
+
+Comment: {comment}
+
+Based on research on online discourse, flag a comment ONLY when one of these clearly applies:
+- Bad-faith engagement: mockery, insults, or relentless "just asking questions" demands (sealioning) - the person isn't seeking dialogue, they're seeking a reaction.
+- Explicit refusal: the person has directly said they don't want to discuss or debate this topic.
+- Extreme entrenchment: absolute, identity-fused hostility so strong that a persuasive reply risks a "boomerang effect" (pushing them further away rather than persuading them).
+
+Most comments, even skeptical, blunt, or frustrated ones, are still worth a genuine persuasive reply. Only flag the comment when one of the three circumstances above clearly applies, not merely because someone disagrees or sounds annoyed.
+
+Return a JSON object:
+{{
+  "worth_engaging": true or false,
+  "reason": "one short sentence explaining your assessment if worth_engaging is false, otherwise an empty string"
+}}
+
+Only return the JSON object. No explanation outside of it.

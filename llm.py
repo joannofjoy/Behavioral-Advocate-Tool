@@ -59,6 +59,19 @@ class ReplyResponse(BaseModel):
     raw_text: str = ""
 
 
+class EngagementAssessment(BaseModel):
+    """The shape we expect back from the engagement-assessment prompt (prompt4.txt).
+
+    "worth_engaging" defaults to True - if this assessment fails outright
+    (API error, bad JSON), we want the app to fall through to its normal
+    behavior (generate a real persuasive reply) rather than silently
+    suppressing one because of an unrelated technical glitch.
+    """
+
+    worth_engaging: bool = True
+    reason: str = ""
+
+
 # Errors worth retrying: all of these are "transient" - a rate limit, a
 # dropped connection, a request that timed out, or the provider's server
 # briefly erroring - where trying again after a short pause has a real
@@ -194,6 +207,37 @@ def extract_tags(client, comment, draft, model=MODEL_NAME, usage_log=None):
         logger.exception("Tag extraction failed")
         st.warning("⚠️ Tag extraction failed.")
         return []
+
+
+def assess_engagement(client, comment, model=MODEL_NAME, usage_log=None):
+    """Ask whether this comment is likely worth a genuine persuasive reply.
+
+    Based on research on online discourse (bad-faith/troll engagement,
+    explicit refusals to discuss, and extreme entrenchment risking a
+    "boomerang effect"), most comments should still get a real persuasive
+    reply - this only flags the few that clearly match one of those three
+    patterns. Returns EngagementAssessment(worth_engaging=True) - i.e. "go
+    ahead as normal" - on any failure; see EngagementAssessment above for
+    why that's the safe default.
+    """
+    try:
+        prompt = load_prompt("prompt4.txt").format(comment=comment or "N/A")
+        r = _create_completion(
+            client,
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=TAG_EXTRACTION_TEMPERATURE,
+            max_tokens=TAG_EXTRACTION_MAX_TOKENS,
+        )
+        _record_usage(r, usage_log)
+        parsed = parse_json_object(r.choices[0].message.content)
+        return EngagementAssessment.model_validate(parsed)
+    except Exception:
+        # Deliberately no st.warning() here - a failed assessment just
+        # means the app proceeds as if nothing was flagged, so surfacing
+        # it to the visitor would be noise, not useful information.
+        logger.exception("Engagement assessment failed")
+        return EngagementAssessment()
 
 
 def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=None):

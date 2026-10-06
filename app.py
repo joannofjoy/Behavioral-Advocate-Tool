@@ -17,7 +17,14 @@ import streamlit as st
 
 from config import MAX_GENERATIONS_PER_SESSION, MAX_INPUT_CHARS
 from firebase_logger import init_firebase, log_to_firestore
-from llm import extract_tags, generate_rebuttal, generate_reply, get_llm_client, load_prompt
+from llm import (
+    assess_engagement,
+    extract_tags,
+    generate_rebuttal,
+    generate_reply,
+    get_llm_client,
+    load_prompt,
+)
 from strategies import filter_strategies_by_tags, load_strategies
 
 # Give this browser session a unique ID (used to group its log entries in
@@ -30,6 +37,57 @@ if "history" not in st.session_state:
     st.session_state.history = []  # list of reply blocks
 if "generation_count" not in st.session_state:
     st.session_state.generation_count = 0  # replies generated so far this session
+if "rating_touched" not in st.session_state:
+    st.session_state.rating_touched = False  # did the user actually move the rating slider?
+
+
+def _mark_rating_touched():
+    """Set when the rating slider's on_change fires - i.e. the user actually
+    dragged it, as opposed to it just sitting at its default value. Without
+    this, hitting "Regenerate" without touching the slider silently logs a
+    rating of 3 as if the user had deliberately chosen it.
+    """
+    st.session_state.rating_touched = True
+
+
+# The two options for "who is this reply going to," and the extra prompt
+# instruction added for the second one. A stranger online is a one-off
+# exchange; someone the user actually knows is an ongoing relationship, so
+# the tone guidance shifts accordingly - family, friends, and partners all
+# get lumped into one "someone I know" option rather than separate ones,
+# since the real distinction that changes the advice is "ongoing
+# relationship vs. one-off," not the exact kind of relationship.
+AUDIENCE_STRANGER = "A stranger online"
+AUDIENCE_KNOWN = "Someone I know (family, friend, etc.)"
+
+RELATIONSHIP_GUIDANCE = {
+    AUDIENCE_KNOWN: (
+        "You are helping reply to someone the user actually knows well - a family "
+        "member, friend, or similar - not an anonymous stranger online. This is an "
+        "ongoing relationship, not a one-off exchange, so prioritize preserving "
+        "warmth and long-term openness over winning this specific exchange. It's "
+        "fine to plant a seed rather than push for full conversion right now, and "
+        "avoid anything that would sting coming from someone they're close to.\n\n"
+    ),
+}
+
+# Prepended to the prompt instead of the normal persuasion instructions
+# when assess_engagement() flags the comment (bad-faith engagement,
+# explicit refusal to discuss, or extreme entrenchment) - research on these
+# situations suggests a full persuasive push is unlikely to help and can
+# even backfire, so the reply shifts to something much smaller: state
+# values calmly, correct any factual inaccuracy once, and stop there.
+LOW_ENGAGEMENT_MODE_BLOCK = (
+    "This comment has been flagged as unlikely to benefit from a persuasive reply "
+    "(bad-faith engagement, an explicit refusal to discuss this topic, or extreme "
+    "entrenchment where persuasion attempts risk pushing someone further away "
+    "instead of closer). Do NOT attempt to persuade, convince, or debate. Instead:\n"
+    "- Briefly and calmly state your values in a positive, non-confrontational way, not a counter-argument.\n"  # noqa: E501
+    "- If the comment contains a factual inaccuracy, correct it once, respectfully, without elaborating further.\n"  # noqa: E501
+    "- Do not ask questions, invite further discussion, or try to change their mind.\n"
+    "- Keep it to 1-2 sentences, shorter than a normal reply.\n\n"
+)
+
 
 client = get_llm_client()
 db = init_firebase()
@@ -39,22 +97,34 @@ strategies = load_strategies()
 # This block injects some custom CSS (styling rules) into the page - things
 # Streamlit doesn't offer built-in controls for, like tightening up the
 # spacing above the title and making the reply text a bit smaller.
-st.markdown(
+#
+# st.html() (rather than st.markdown with unsafe_allow_html) is the
+# correct way to inject a <style> tag - Streamlit sanitizes <style> tags
+# out of st.markdown's HTML, so that older pattern silently does nothing.
+st.html(
     """
     <style>
     .block-container { padding-top: 2rem; }
-    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    /* Streamlit's own stylesheet styles h1 with higher specificity than a
+       plain tag selector, so !important is needed for this to actually win. */
+    h1 { font-size: 1.5rem !important; margin-bottom: 0.5rem !important; }
     .reply-line { font-size: 0.9rem; margin-bottom: 0.5rem; }
     .reply-label { font-weight: bold; margin-right: 0.25rem; }
     </style>
-""",
-    unsafe_allow_html=True,
+"""
 )
 
-st.markdown("## Animal Advocacy Messaging Assistant")
+st.markdown("# Animal Advocacy Messaging Assistant")
 st.write(
     "This tool helps improve social media comments for better "
     "persuasiveness using behavioral science."
+)
+
+audience = st.radio(
+    "Who are you replying to?",
+    [AUDIENCE_STRANGER, AUDIENCE_KNOWN],
+    key="audience_input",
+    horizontal=True,
 )
 
 comment = st.text_area(
@@ -106,6 +176,14 @@ if st.session_state.get("run"):
         # llm.py's _record_usage for what each entry looks like.
         usage_log = []
         tags = extract_tags(client, comment.strip(), draft.strip(), usage_log=usage_log)
+        # Only worth assessing when there's an actual comment to read - a
+        # draft-only input has no other person's comment to judge for bad
+        # faith, explicit refusal, or entrenchment.
+        engagement = (
+            assess_engagement(client, comment.strip(), usage_log=usage_log)
+            if comment.strip()
+            else None
+        )
         strats, matched_tags = filter_strategies_by_tags(strategies, tags)
         strat_block = (
             "\n".join(f"- {s['title']}: {s['description']}" for s in strats)
@@ -117,6 +195,11 @@ if st.session_state.get("run"):
         feedback_txt = st.session_state.get("feedback", "").strip()
         rating_val = st.session_state.get("rating")
 
+        relationship_block = RELATIONSHIP_GUIDANCE.get(audience, "")
+        low_engagement_block = (
+            LOW_ENGAGEMENT_MODE_BLOCK if engagement and not engagement.worth_engaging else ""
+        )
+
         if feedback_txt or rating_val is not None:
             feedback_block = (
                 f"You just received the following feedback on your previous reply:\n"
@@ -127,9 +210,9 @@ if st.session_state.get("run"):
                 f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. If you did not include any part of the feedback, explain why. \n"  # noqa: E501
             )
 
-            prompt = feedback_block + "\n" + base_prompt
+            prompt = low_engagement_block + relationship_block + feedback_block + "\n" + base_prompt
         else:
-            prompt = base_prompt
+            prompt = low_engagement_block + relationship_block + base_prompt
 
         parsed = generate_reply(client, prompt, comment, draft, usage_log=usage_log)
 
@@ -171,11 +254,15 @@ if st.session_state.get("run"):
                 matched_tags_in_strategies=matched_tags,
                 strategies=strats,
                 rating=rating_val,
+                rating_confirmed=st.session_state.rating_touched,
                 written_feedback=feedback_txt,
                 session_id=session_id,
                 usage_details=usage_log,
                 tokens_used=sum(u["total_tokens"] or 0 for u in usage_log),
                 cost_usd=sum(u["cost"] or 0 for u in usage_log),
+                relationship_context=audience,
+                worth_engaging=engagement.worth_engaging if engagement else None,
+                engagement_reason=engagement.reason if engagement else None,
             )
             st.session_state.run = False
             st.rerun()
@@ -193,6 +280,9 @@ if st.session_state.get("run"):
                 "strategies": strats,
                 "rebuttal": rebuttal,
                 "session_id": session_id,
+                "engagement_reason": (
+                    engagement.reason if engagement and not engagement.worth_engaging else None
+                ),
             }
         )
         if len(st.session_state.history) > 1:
@@ -211,17 +301,22 @@ if st.session_state.get("run"):
             matched_tags_in_strategies=matched_tags,
             strategies=strats,
             rating=rating_val,
+            rating_confirmed=st.session_state.rating_touched,
             written_feedback=feedback_txt,
             session_id=session_id,
             rebuttal=rebuttal,
             usage_details=usage_log,
             tokens_used=sum(u["total_tokens"] or 0 for u in usage_log),
             cost_usd=sum(u["cost"] or 0 for u in usage_log),
+            relationship_context=audience,
+            worth_engaging=engagement.worth_engaging if engagement else None,
+            engagement_reason=engagement.reason if engagement else None,
         )
 
         st.session_state.run = False
         st.session_state.rating = None
         st.session_state.feedback = None
+        st.session_state.rating_touched = False
 
 if st.session_state.history:
     if len(st.session_state.history) == 1:
@@ -235,6 +330,12 @@ if st.session_state.history:
         # (&lt;, &gt;) so that text can never be interpreted as actual HTML
         # tags/scripts when it's inserted into the page below.
         latest = st.session_state.history[-1]
+        if latest.get("engagement_reason"):
+            st.warning(
+                f"⚠️ This comment may not be worth a full persuasive reply: "
+                f"{latest['engagement_reason']} The reply below sticks to stating "
+                f"values and correcting facts rather than trying to persuade."
+            )
         st.markdown(
             f"<div class='reply-line'><span class='reply-label'>Reply:</span>"
             f"{html.escape(latest['reply'])}</div>",
@@ -262,6 +363,12 @@ if st.session_state.history:
                 unsafe_allow_html=True,
             )
             latest = st.session_state.history[-1]
+            if latest.get("engagement_reason"):
+                st.warning(
+                    f"⚠️ This comment may not be worth a full persuasive reply: "
+                    f"{latest['engagement_reason']} The reply below sticks to stating "
+                    f"values and correcting facts rather than trying to persuade."
+                )
             st.markdown(
                 f"<div class='reply-line'><span class='reply-label'>Latest Reply:</span>"
                 f"{html.escape(latest['reply'])}</div>",
@@ -346,9 +453,19 @@ if st.session_state.history:
 
     st.markdown("---")
     st.markdown("### Feedback")
-    rate = st.slider("How do you like the most recent response?", 1, 5, 3, key="rating_input")
+    rate = st.slider(
+        "How do you like the most recent response?",
+        1,
+        5,
+        3,
+        key="rating_input",
+        on_change=_mark_rating_touched,
+    )
     fb = st.text_area("Optional feedback (used only if you regenerate):", key="fb_input")
-    st.session_state.rating = rate
+    # Only treat the rating as real if the slider was actually moved -
+    # otherwise it's just sitting at its default value, not a deliberate
+    # opinion, and shouldn't be logged as though it were one.
+    st.session_state.rating = rate if st.session_state.rating_touched else None
     st.session_state.feedback = fb
 
     if st.button("🔁 Regenerate with feedback"):

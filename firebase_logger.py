@@ -66,6 +66,7 @@ def log_to_firestore(
     strategies,
     session_id=None,
     rating=None,
+    rating_confirmed=False,
     written_feedback=None,
     rebuttal=None,
     confidence_score=None,
@@ -75,6 +76,9 @@ def log_to_firestore(
     usage_details=None,
     tokens_used=None,
     cost_usd=None,
+    relationship_context=None,
+    worth_engaging=None,
+    engagement_reason=None,
 ):
     """Save one reply/session record to the "session_logs" collection.
 
@@ -107,6 +111,11 @@ def log_to_firestore(
         # collect those into a new list.
         "strategies": [s.get("title", "") for s in strategies],
         "rating": rating,
+        # True only when the user actually moved the rating slider, rather
+        # than it just sitting at its default value - lets future analysis
+        # filter out the slider-default noise older records may contain
+        # without guessing from timestamps.
+        "rating_confirmed": rating_confirmed,
         "written_feedback": written_feedback,
         "rebuttal": rebuttal,
         "confidence_score": confidence_score,
@@ -121,6 +130,14 @@ def log_to_firestore(
         "usage_details": usage_details,
         "tokens_used": tokens_used,
         "cost_usd": cost_usd,
+        # "A stranger online" or "Someone I know (family, friend, etc.)" -
+        # which tone guidance the reply was generated under.
+        "relationship_context": relationship_context,
+        # None when there was no comment to assess (draft-only input);
+        # otherwise whether assess_engagement() judged this comment likely
+        # to benefit from a genuine persuasive reply, and why not if not.
+        "worth_engaging": worth_engaging,
+        "engagement_reason": engagement_reason,
     }
     try:
         # uuid.uuid4() generates a random, practically-unique ID to use as
