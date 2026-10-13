@@ -59,6 +59,26 @@ REPLY_MAX_TOKENS = 600
 
 STRATEGIES_PATH = "strategies.json"
 
+# How the strategies for each reply are chosen (see retrieval.py):
+# - "tags": every strategy sharing a tag with the comment, unranked.
+# - "ranked": find the strategies closest in meaning to the comment, then
+#   have the model pick the best few, in order.
+STRATEGY_RETRIEVAL = os.getenv("STRATEGY_RETRIEVAL", "tags")
+# An "embedding" turns a piece of text into a list of numbers that captures
+# what it means, so texts about similar things end up with similar numbers.
+# 512 numbers per text (instead of this model's default 1536) keeps the saved
+# file small, with very little loss in quality.
+EMBEDDING_MODEL = "openai/text-embedding-3-small"
+EMBEDDING_DIMENSIONS = 512
+STRATEGY_EMBEDDINGS_PATH = "strategy_embeddings.json"
+# How many of the closest strategies are shortlisted, and how many of those
+# the model picks to actually use in the reply.
+RETRIEVAL_CANDIDATES = 8
+# How many of the best tag matches are added to that shortlist (see
+# retrieval.py for why both are used).
+TAG_CANDIDATES = 4
+STRATEGIES_PER_REPLY = 3
+
 # Caps used to bound cost/abuse on the public demo: the longest comment or
 # draft reply the app will send to the model, and the most replies one
 # browser session is allowed to generate.

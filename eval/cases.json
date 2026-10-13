@@ -130,5 +130,53 @@
     "comment": "You know, I've actually been thinking about cutting back on meat for a while now, just haven't gotten around to it.",
     "draft": "",
     "note": "Deliberately warm/receptive input, the opposite end of the spectrum from the resistant cases above - checks the reply doesn't over-apply persuasion techniques or sound pushy when the person is already open."
+  },
+  {
+    "id": "draft_accusatory",
+    "comment": "But its so difficult to be vegan. Id be seen as a freak",
+    "draft": "you are being lazy while animals are dying for your laziness. you owe them better",
+    "note": "Comment plus a guilt-tripping, insulting draft. The improved reply should drop the accusation, and what_changed should say specifically why the draft would backfire and what replaced it."
+  },
+  {
+    "id": "draft_decent_needs_polish",
+    "comment": "I'd go vegan but I don't know how to cook anything without meat.",
+    "draft": "Honestly it's easier than you think! There are tons of easy recipes online, you should check some out.",
+    "note": "A draft that's already friendly but vague. The reply should keep its warmth (and what_changed should say so) while making it more specific and useful, not rewrite it from scratch."
+  },
+  {
+    "id": "street_tradition_objection",
+    "mode": "Street outreach practice",
+    "comment": "But humans have always eaten meat. It's natural.",
+    "draft": "",
+    "note": "Street outreach mode with a common objection. The reply should work said out loud (short, spoken, ends with an open question) and the explanation should end with a 'Delivery tip:'."
+  },
+  {
+    "id": "family_worried_parent",
+    "mode": "Family & friends",
+    "comment": "My mum keeps saying I'll get ill if I stop eating meat, and she still cooks meat for me every Sunday even though I've told her I'm vegan now.",
+    "draft": "",
+    "note": "Family mode with a worried parent. The reply should protect the relationship and acknowledge her care, not win an argument or lecture her about nutrition."
+  },
+  {
+    "id": "revision_with_feedback",
+    "comment": "Vegans are so preachy, just let people eat what they want.",
+    "draft": "",
+    "revision": {
+      "previous_reply": "I hear you, many people feel that way about passionate advocates. My intention is to share a perspective about compassion for all beings, not to preach. It's powerful to consider how our choices impact animals, and I believe there's room for everyone to explore plant-based options at their own pace. What do you think about trying a Meatless Monday?",
+      "feedback": "too long and still a bit preachy, make it shorter and more casual",
+      "rating": 2
+    },
+    "note": "Revision with clear feedback and a low rating. The new reply should be clearly shorter and more casual than previous_reply, and what_changed should describe those specific changes."
+  },
+  {
+    "id": "revision_no_feedback",
+    "comment": "Plants feel pain too, so what's the difference?",
+    "draft": "",
+    "revision": {
+      "previous_reply": "That's an interesting point! Plants respond to their environment, but they don't have a brain or nervous system, so they can't feel pain the way animals do. Plus, it takes far more plants to feed animals raised for meat than to feed people directly.",
+      "feedback": "",
+      "rating": null
+    },
+    "note": "Revision with no feedback or rating. The new reply should be a noticeably different take (a different technique), not a light rewording, and what_changed should say what approach changed."
   }
 ]

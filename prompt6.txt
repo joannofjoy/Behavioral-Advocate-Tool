@@ -1,0 +1,21 @@
+You are choosing which behavioral science strategies an animal advocate should use when replying to the comment below. A separate step will write the reply; your only job is to pick the strategies.
+
+Comment the advocate is replying to: {comment}
+
+The advocate's own draft reply, if any: {draft}
+
+Candidate strategies:
+{candidates}
+
+Pick the {count} candidates (or fewer, if fewer genuinely fit) that would most help write a persuasive, non-confrontational reply to this specific comment. A good reply usually needs both:
+- one strategy for how the person feels or comes across (for example defensive, mocking, worried, or curious), so the reply meets them where they are;
+- one or two strategies for the actual argument or claim they make, if they make one.
+Prefer strategies that fit this exact comment over ones that only fit the topic in general. Put the best one first.
+
+Return a JSON object:
+{{
+  "selected": [candidate numbers, best first],
+  "reason": "one short sentence on why these fit"
+}}
+
+Only return the JSON object. No explanation outside of it.

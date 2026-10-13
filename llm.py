@@ -1,12 +1,17 @@
 # This file is the only place that actually talks to the LLM (via
 # OpenRouter, using the same "openai" package pointed at a different
-# server). It has three jobs, matching the three prompt files in this repo:
-#   - extract_tags: read the conversation and label its emotional tone
+# server). Its jobs, each with its own prompt file:
+#   - extract_tags: read the conversation and label its topics and tone
 #     (prompt1.txt)
 #   - assess_engagement: judge whether a comment is worth a genuine
 #     persuasive reply at all (prompt4.txt)
-#   - generate_reply: write the persuasive reply itself (prompt2.txt, built
-#     by app.py using the strategies picked out in strategies.py)
+#   - rank_strategies: pick the best few strategies from a shortlist
+#     (prompt6.txt; used by retrieval.py)
+#   - generate_reply: write the persuasive reply itself (prompt2.txt, put
+#     together by prompt_builder.py)
+#   - score_reply_quality: quietly score each reply for later analysis
+#     (prompt5.txt)
+# plus embed_texts, which turns text into embeddings for retrieval.py.
 
 import json
 import logging
@@ -17,6 +22,8 @@ from pydantic import BaseModel
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from config import (
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_MODEL,
     MODEL_NAME,
     OPENROUTER_BASE_URL,
     QUALITY_JUDGE_MODEL,
@@ -347,3 +354,64 @@ def score_reply_quality(client, comment, reply_message, usage_log=None):
     except Exception:
         logger.exception("Reply quality scoring failed")
         return ReplyQualityScores()
+
+
+def embed_texts(client, texts, usage_log=None):
+    """Turn each text into an embedding: a list of numbers capturing its
+    meaning, so texts about similar things get similar numbers.
+
+    Returns one list of numbers per text, in the same order. Raises on
+    failure - the caller (retrieval.py) decides what to fall back to.
+    """
+    r = client.embeddings.create(
+        model=EMBEDDING_MODEL, input=texts, dimensions=EMBEDDING_DIMENSIONS
+    )
+    _record_usage(r, usage_log)
+    return [item.embedding for item in r.data]
+
+
+class StrategyRanking(BaseModel):
+    """The shape we expect back from the strategy-ranking prompt (prompt6.txt).
+
+    "selected" holds the candidate numbers the model picked, best first.
+    """
+
+    selected: list[int] = []
+    reason: str = ""
+
+
+def rank_strategies(client, comment, draft, candidates, count, model=MODEL_NAME, usage_log=None):
+    """Ask the model to pick the best "count" strategies from a shortlist.
+
+    "candidates" is a list of strategy dicts. Returns the chosen ones, best
+    first. Raises on failure - the caller decides what to fall back to.
+    """
+    # enumerate(..., start=1) numbers the candidates from 1, so the model can
+    # answer with short numbers instead of copying out long titles.
+    candidate_lines = "\n".join(
+        f"{i}. {s['title']}: {s['description']}" for i, s in enumerate(candidates, start=1)
+    )
+    prompt = load_prompt("prompt6.txt").format(
+        comment=comment or "(none)",
+        draft=draft or "(none)",
+        candidates=candidate_lines,
+        count=count,
+    )
+    r = _create_completion(
+        client,
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=150,
+    )
+    _record_usage(r, usage_log)
+    ranking = StrategyRanking.model_validate(parse_json_object(r.choices[0].message.content))
+    picked = []
+    for number in ranking.selected:
+        # Ignore numbers outside the list and repeats, in case the model
+        # makes one up or names the same candidate twice.
+        if 1 <= number <= len(candidates) and candidates[number - 1] not in picked:
+            picked.append(candidates[number - 1])
+    if not picked:
+        raise ValueError("Ranking returned no valid candidates")
+    return picked[:count]

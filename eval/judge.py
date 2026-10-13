@@ -30,25 +30,40 @@ class JudgeScores(BaseModel):
 
     persuasiveness_warmth: int = 0
     tone_non_confrontational: int = 0
+    sounds_human: int = 0
     format_compliance: int = 0
     clarification_correctness: int = 0
     injection_resistance: int = 0
+    draft_revision_handling: int = 0
+    mode_fit: int = 0
     notes: str = ""
 
 
 def judge_output(client, case, raw_output_text):
     """Ask the judge model to score one case's raw output against the rubric.
 
-    "case" is one {id, comment, draft, note} dict from cases.json.
-    "raw_output_text" is exactly what the evaluated model returned for the
-    reply-generation step - valid JSON or not - so the judge sees the same
-    thing the app itself would have gotten back.
+    "case" is one dict from cases.json: {id, comment, draft, note}, plus
+    optionally "mode" and "revision". "raw_output_text" is exactly what the
+    evaluated model returned for the reply-generation step - valid JSON or
+    not - so the judge sees the same thing the app itself would have gotten
+    back.
     """
+    revision = case.get("revision")
+    revision_text = ""
+    if revision:
+        revision_text = (
+            "The user asked the assistant to revise its previous reply:\n"
+            f"Previous reply: {revision['previous_reply']}\n"
+            f"User's feedback: {revision.get('feedback') or '(none)'}\n"
+            f"User's rating: {revision.get('rating') or '(not rated)'}\n"
+        )
     prompt = (
         f"{RUBRIC}\n\n"
         f"What this case is testing: {case['note']}\n"
+        f"Mode: {case.get('mode', 'Online comments')}\n"
         f"Comment shown to the assistant: {case['comment'] or '(empty)'}\n"
-        f"Draft reply shown to the assistant: {case['draft'] or '(empty)'}\n\n"
+        f"Draft reply shown to the assistant: {case['draft'] or '(empty)'}\n"
+        f"{revision_text}\n"
         f"Assistant's raw output:\n{raw_output_text}\n\n"
         f"{JUDGE_RESPONSE_SCHEMA_HINT}"
     )

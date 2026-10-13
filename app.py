@@ -15,17 +15,23 @@ import uuid
 
 import streamlit as st
 
-from config import MAX_GENERATIONS_PER_SESSION, MAX_INPUT_CHARS, TESTING_MODE
+from config import (
+    MAX_GENERATIONS_PER_SESSION,
+    MAX_INPUT_CHARS,
+    STRATEGY_RETRIEVAL,
+    TESTING_MODE,
+)
 from firebase_logger import init_firebase, log_to_firestore
 from llm import (
     assess_engagement,
     extract_tags,
     generate_reply,
     get_llm_client,
-    load_prompt,
     score_reply_quality,
 )
-from strategies import filter_strategies_by_tags, load_strategies
+from prompt_builder import MODE_FAMILY, MODE_ONLINE, MODE_STREET, MODES, build_reply_prompt
+from retrieval import load_strategy_embeddings, select_strategies
+from strategies import load_strategies
 
 # Give this browser session a unique ID (used to group its log entries in
 # Firestore), but only the first time this code runs for this session -
@@ -50,55 +56,6 @@ def _mark_rating_touched():
     st.session_state.rating_touched = True
 
 
-# The three things the app can be used for. The main prompt (prompt2.txt)
-# is written for online comments, so that mode needs no extra instructions;
-# the other two get a short block of guidance put in front of the prompt
-# that changes what kind of message to write.
-#
-# - Online comments: a one-off exchange with a stranger, in writing.
-# - Street outreach: an activist practicing what to say out loud to a
-#   passer-by, so the reply has to work as spoken words.
-# - Family & friends: an ongoing relationship, so keeping things warm
-#   matters more than winning this one conversation.
-MODE_ONLINE = "Online comments"
-MODE_STREET = "Street outreach practice"
-MODE_FAMILY = "Family & friends"
-
-MODE_GUIDANCE = {
-    MODE_STREET: (
-        "You are helping an activist prepare for in-person street outreach (for "
-        "example, talking with a passer-by at an outreach stall or demonstration), "
-        "not write an online comment. Write the message as words to be said out "
-        "loud: short, natural spoken sentences, no links, no references to 'your "
-        "comment' or 'this post', and nothing that sounds scripted or recited. "
-        "Street conversations are a back-and-forth, so keep it brief and usually "
-        "end with a genuine, open question that invites the person to keep "
-        "talking.\n\n"
-    ),
-    MODE_FAMILY: (
-        "You are helping reply to someone the user actually knows well - a family "
-        "member, friend, or similar - not an anonymous stranger online. This is an "
-        "ongoing relationship, not a one-off exchange, so prioritize preserving "
-        "warmth and long-term openness over winning this specific exchange. It's "
-        "fine to plant a seed rather than push for full conversion right now, and "
-        "avoid anything that would sting coming from someone they're close to. "
-        "Write the message so it works either said out loud or sent as a text.\n\n"
-    ),
-}
-
-# Extra instructions added at the very end of the prompt rather than the
-# start. The main prompt has its own rules for the explanation field ("2-4
-# sentences..."), and the model tends to follow whichever instruction it
-# read last - a request placed at the start kept getting ignored.
-MODE_EXPLANATION_ADDON = {
-    MODE_STREET: (
-        "\n\nFor this street outreach reply, the explanation field must end with "
-        "one extra sentence starting with 'Delivery tip:' that gives the activist "
-        "one practical tip for saying this face to face (tone, pacing, or when to "
-        "pause and let the other person think)."
-    ),
-}
-
 # The label and placeholder for the main text box change with the mode, so
 # each one asks for the kind of input that actually makes sense for it.
 MODE_INPUT_TEXT = {
@@ -118,27 +75,26 @@ MODE_INPUT_TEXT = {
     ),
 }
 
-# Prepended to the prompt instead of the normal persuasion instructions
-# when assess_engagement() flags the comment (bad-faith engagement,
-# explicit refusal to discuss, or extreme entrenchment) - research on these
-# situations suggests a full persuasive push is unlikely to help and can
-# even backfire, so the reply shifts to something much smaller: state
-# values calmly, correct any factual inaccuracy once, and stop there.
-LOW_ENGAGEMENT_MODE_BLOCK = (
-    "This comment has been flagged as unlikely to benefit from a persuasive reply "
-    "(bad-faith engagement, an explicit refusal to discuss this topic, or extreme "
-    "entrenchment where persuasion attempts risk pushing someone further away "
-    "instead of closer). Do NOT attempt to persuade, convince, or debate. Instead:\n"
-    "- Briefly and calmly state your values in a positive, non-confrontational way, not a counter-argument.\n"  # noqa: E501
-    "- If the comment contains a factual inaccuracy, correct it once, respectfully, without elaborating further.\n"  # noqa: E501
-    "- Do not ask questions, invite further discussion, or try to change their mind.\n"
-    "- Keep it to 1-2 sentences, shorter than a normal reply.\n\n"
-)
-
-
 client = get_llm_client()
 db = init_firebase()
 strategies = load_strategies()
+
+
+# @st.cache_resource runs this function once per server start and then
+# hands back the same result on every rerun and to every visitor, instead
+# of reloading the strategy embeddings each time someone clicks something.
+@st.cache_resource
+def get_strategy_vectors():
+    """Embeddings for every strategy, used by ranked retrieval (retrieval.py)."""
+    try:
+        return load_strategy_embeddings(client, strategies)
+    except Exception:
+        # select_strategies() falls back to tag matching when this is None
+        # and the embeddings still can't be loaded.
+        return None
+
+
+strategy_vectors = get_strategy_vectors() if STRATEGY_RETRIEVAL == "ranked" else None
 
 # The steps shown in the "How it works" popup.
 INSTRUCTION_STEPS = [
@@ -322,6 +278,21 @@ st.html(
     [data-testid="stVerticalBlock"] { gap: 0.5rem !important; }
     hr { margin: 0.5rem 0 !important; }
     div[data-testid="stButton"] button { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+    /* The draft box sits inside the "Optional: Your draft reply" expander,
+       which already has its own frame - so the text box drops its border
+       and background and the two read as one frame, not a box in a box.
+       ":has(...)" picks out only the expander that contains the draft box. */
+    .st-key-draft_input [data-testid="stTextAreaRootElement"],
+    .st-key-draft_input [data-baseweb="textarea"],
+    .st-key-draft_input textarea {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stExpanderDetails"]:has(.st-key-draft_input) {
+        padding: 0 0.4rem 0.4rem !important;
+        border-top: 1px solid #d8e3dc;
+    }
     </style>
 """
 )
@@ -349,7 +320,7 @@ elif "seen_intro" not in st.session_state:
 # would otherwise leave no mode selected at all.
 mode = st.segmented_control(
     "What are you using this for?",
-    [MODE_ONLINE, MODE_STREET, MODE_FAMILY],
+    MODES,
     default=MODE_ONLINE,
     required=True,
     key="mode_input",
@@ -418,25 +389,20 @@ if st.session_state.get("run"):
             if comment.strip()
             else None
         )
-        strats, matched_tags = filter_strategies_by_tags(strategies, tags)
-        # Includes each strategy's source (e.g. "Faunalytics", "Paul
-        # Slovic") alongside its description, not just the description
-        # alone - the explanation field is meant to teach the user
-        # something, and naming where a technique comes from makes that
-        # explanation genuinely informative rather than a vague summary.
-        strat_block = (
-            "\n".join(f"- {s['title']} (source: {s['source']}): {s['description']}" for s in strats)
-            or "No strategies matched."
+        strats, matched_tags = select_strategies(
+            client,
+            strategies,
+            tags,
+            comment,
+            draft,
+            STRATEGY_RETRIEVAL,
+            strategy_vectors=strategy_vectors,
+            usage_log=usage_log,
         )
-
-        base_prompt = load_prompt("prompt2.txt").format(formatted_strategies=strat_block)
-
-        mode_block = MODE_GUIDANCE.get(mode, "")
-        low_engagement_block = (
-            LOW_ENGAGEMENT_MODE_BLOCK if engagement and not engagement.worth_engaging else ""
-        )
-        prompt = (
-            low_engagement_block + mode_block + base_prompt + MODE_EXPLANATION_ADDON.get(mode, "")
+        prompt = build_reply_prompt(
+            strats,
+            mode=mode,
+            worth_engaging=engagement.worth_engaging if engagement else True,
         )
 
         # Feedback only counts when the user clicked "Regenerate with

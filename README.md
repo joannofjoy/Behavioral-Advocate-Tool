@@ -100,15 +100,28 @@ Realistic and adversarial inputs were tested to verify:
 - Input/output formatting integrity
 - No leakage of system prompt or strategy list in final responses
 
-**Cross-Model Evaluation**
+**Prompt Evaluation**
 
-Since the assistant runs on OpenRouter rather than a single fixed provider, the `eval/` directory
-holds a small, repeatable evaluation harness: a fixed set of representative and adversarial inputs
-(friendly, hostile, vague, prompt-injection attempts, and more) run through the real prompt chain
-against several candidate models at once. Each output is scored by a separate judge model against a
-written rubric covering persuasiveness, tone, JSON format compliance, correct clarification
-triggering, and injection resistance, producing a side-by-side comparison table. This is what's used
-to decide which model the live app runs on, rather than relying on a handful of manual tries.
+A normal test suite can't catch the biggest risk in a prompt-chained app: a prompt tweak that quietly
+makes replies worse. The `eval/` directory holds a small evaluation set for that - 28 fixed inputs
+(friendly, hostile, vague, prompt-injection attempts, user drafts, revision requests, and street
+outreach and family conversations) run through the same prompt chain the live app uses. A separate,
+stronger judge model scores each output against a written rubric: persuasiveness, tone, how human it
+sounds, JSON format compliance, correct clarification, injection resistance, how well it improves on
+a draft or follows revision feedback, and how well it fits the chosen mode.
+
+One example of what it's used for: as the strategy library grows, exact tag matching will stop
+scaling, so I built an embedding-based retrieval step (RAG) as an alternative. It shortlists the
+strategies closest in meaning to the comment, adds the strongest tag matches, and has the model pick
+the best few in order. On the current 41-strategy library it scored slightly below plain tag matching
+(4.41 vs 4.47 overall, averaged over two runs, with run-to-run variation of about 0.02), mostly because
+hand-tuned tags are precise at this size. So the app still uses tag matching by default, with the
+retrieval step one setting away (`STRATEGY_RETRIEVAL=ranked`) and re-tested as the library grows.
+
+I run it before every change to the prompts or the strategy library. Each run is saved and
+automatically compared with the previous one, both as average scores and as a list of individual
+inputs whose scores dropped, so a regression shows up before it reaches users. With `--all-models`,
+the same set compares candidate models side by side, which is how the live app's model was chosen.
 
 ## Abuse & Jailbreaking Policy
 
