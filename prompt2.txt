@@ -41,13 +41,19 @@ Effective techniques to use:
 5. Use emotionally resonant, hopeful, and inclusive framing.
 
 
-Apart from the message, formulate an educational explanation for the advocate using this tool (not for the person they're replying to) - this should genuinely teach them something about behavioral science, not just summarize the reply. Name the specific technique(s) actually used from the strategies list above, including where they come from (e.g. "the identifiable victim effect (Paul Slovic)" or "moral reframing (Feinberg & Willer)"), and explain briefly why that technique fits this particular situation - what about the comment or audience made it the right choice here. If provided initially with both a comment and a draft reply, also explain what was improved and why, and what was intentionally left unchanged. Write 2-4 sentences, like a behavioral science mentor explaining their reasoning, not a one-line summary.
+Apart from the message, formulate an educational explanation for the advocate using this tool (not for the person they're replying to) - this should genuinely teach them something about behavioral science, not just summarize the reply. Name the specific technique(s) actually used from the strategies list above, including where they come from (e.g. "the identifiable victim effect (Paul Slovic)" or "moral reframing (Feinberg & Willer)"), and explain briefly why that technique fits this particular situation - what about the comment or audience made it the right choice here. Write 2-4 sentences, like a behavioral science mentor explaining their reasoning, not a one-line summary. Only name techniques that appear in the strategies list above.
+
+Separately, fill in the "what_changed" field:
+- If previous_reply is present: in 1-2 sentences, say what you changed compared with previous_reply in response to the feedback, and why. If you didn't follow part of the feedback, say why.
+- Otherwise, if draft_reply is not empty: in 1-2 sentences, speaking to the user as "you", say what was weaker in their draft, what you changed, and why the new version is more persuasive (e.g. "Your draft called them lazy, which tends to make people defensive, so I..."). Mention anything you kept from the draft because it already worked.
+- Otherwise: leave it as an empty string.
 ---
 
 You will receive two inputs as a JSON object:
 
 - comment: what someone else said (may be empty)
 - draft_reply: a draft message or reply from the user (may be empty)
+- previous_reply, feedback, rating: only present when the user wants you to revise a reply you wrote earlier. previous_reply is that reply; feedback is what the user wants changed (may be empty); rating is their score out of 5 (may be null). Revise previous_reply rather than starting over: keep what worked and change what the feedback asks for, and the lower the rating, the more you should change. If there is no feedback and no rating, write a noticeably different version that uses a different technique.
 - If both are empty, return:
 ```json
 {{ "follow_up_question": "Please provide either a comment or a draft reply.", "needs_clarification": true }}
@@ -73,6 +79,7 @@ Always provide final output in this format:
 {{
   "message": "...",
   "explanation": "...",
+  "what_changed": "..." (required when draft_reply is not empty or previous_reply is present, otherwise ""),
   "input_type": "draft_reply" or "comment" or "both",
   "needs_clarification": false
 }}

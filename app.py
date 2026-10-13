@@ -146,7 +146,8 @@ INSTRUCTION_STEPS = [
     "or talking with family and friends.",
     "Paste what the other person said, plus any context that helps.",
     "Get a reply, along with a short explanation of the behavioral science technique behind it.",
-    "Rate the reply or add feedback, then regenerate for an improved version.",
+    'Rate the reply and say what should change, then click "Revise this reply" '
+    "for an improved version. Earlier versions are kept at the bottom.",
 ]
 
 
@@ -164,21 +165,45 @@ def show_instructions():
         st.rerun()
 
 
-def reply_card_html(label, reply, explanation):
-    """Build the HTML for one reply card: a heading, the reply, and its
-    explanation underneath in a tinted box.
+def reply_card_html(label, entry, show_context=True, show_draft=True):
+    """Build the HTML for one version's card.
 
-    The reply and explanation come from the model, whose output is shaped by
-    whatever the visitor typed in, so it isn't fully trusted. html.escape(...)
-    turns characters like < and > into harmless text (&lt;, &gt;), so they can
-    never be read as real HTML tags or scripts once inserted into the page.
+    "entry" is one item from st.session_state.history. The card shows, in
+    order: a heading, a short line saying why this version exists (e.g.
+    "Revised from version 1 using your feedback"), the user's own draft if
+    they gave one, the reply, and the explanation in a tinted box.
+
+    Everything shown here comes from the visitor or from the model (whose
+    output is shaped by what the visitor typed), so none of it is fully
+    trusted. html.escape(...) turns characters like < and > into harmless
+    text (&lt;, &gt;), so they can never be read as real HTML tags or
+    scripts once inserted into the page.
     """
-    return (
-        f"<div class='reply-card'><h4>{html.escape(label)}</h4>"
-        f"<p>{html.escape(reply)}</p>"
-        f"<div class='explain'><strong>Why this works:</strong> "
-        f"{html.escape(explanation)}</div></div>"
-    )
+    parts = [f"<div class='reply-card'><h4>{html.escape(label)}</h4>"]
+    # .get() returns None instead of raising an error when a key is missing,
+    # which keeps this working for history entries made before these
+    # fields existed.
+    if show_context and entry.get("context"):
+        parts.append(f"<div class='context'>{html.escape(entry['context'])}</div>")
+    if show_draft and entry.get("draft"):
+        parts.append(
+            f"<div class='draft'><span>Your draft</span>{html.escape(entry['draft'])}</div>"
+        )
+    parts.append(f"<p>{html.escape(entry['reply'])}</p>")
+    if entry.get("what_changed"):
+        parts.append(
+            f"<div class='explain changed'><strong>"
+            f"{html.escape(entry.get('what_changed_label', 'What changed'))}:</strong> "
+            f"{html.escape(entry['what_changed'])}</div>"
+        )
+    # A clarifying question has no technique to explain.
+    if not entry.get("is_clarification"):
+        parts.append(
+            f"<div class='explain'><strong>Why this works:</strong> "
+            f"{html.escape(entry['explanation'])}</div>"
+        )
+    parts.append("</div>")
+    return "".join(parts)
 
 
 # ------------------- UI -------------------
@@ -253,6 +278,39 @@ st.html(
         font-size: 0.88rem;
     }
     .reply-card .explain strong { color: #15803d; }
+    /* "What changed" sits right above "Why this works", with a white
+       background and green outline so the two boxes read as separate. */
+    .reply-card .explain.changed {
+        background: #ffffff;
+        border: 1px solid #bfe3cb;
+        margin-bottom: 0.5rem;
+    }
+    /* The short "why this version exists" line under a card's heading. */
+    .reply-card .context {
+        font-size: 0.82rem;
+        color: #56655b;
+        font-style: italic;
+        margin: -0.2rem 0 0.6rem;
+    }
+    /* The user's own draft, shown above the improved reply for comparison. */
+    .reply-card .draft {
+        border: 1px dashed #c3d0c7;
+        border-radius: 10px;
+        padding: 0.55rem 0.8rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.88rem;
+        color: #56655b;
+    }
+    .reply-card .draft span {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.2rem;
+    }
+    /* "Earlier versions": scroll inside the box once the list gets long. */
+    .st-key-earlier_versions { max-height: 32rem; overflow-y: auto; padding-right: 0.25rem; }
     /* Soft shadow on the filled green buttons, so the main actions pop. */
     [data-testid="stBaseButton-primary"] { box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3); }
     .app-footer { text-align: center; font-size: 0.8rem; margin-top: 1.5rem; opacity: 0.7; }
@@ -264,21 +322,6 @@ st.html(
     [data-testid="stVerticalBlock"] { gap: 0.5rem !important; }
     hr { margin: 0.5rem 0 !important; }
     div[data-testid="stButton"] button { padding-top: 0.25rem; padding-bottom: 0.25rem; }
-    /* Streamlit auto-stacks st.columns() into separate rows below a width
-       breakpoint, which would break the ◀ / "Previous Versions" / ▶ row
-       into three disconnected blocks on mobile. The "version_nav" keyed
-       container (wrapped around just that row in app.py) gets a
-       ".st-key-version_nav" class we can scope this override to, without
-       touching any other column layout in the app - !important is needed
-       here because Streamlit's own responsive rule wins otherwise. */
-    .st-key-version_nav [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; }
-    .st-key-version_nav [data-testid="stColumn"] {
-        width: auto !important;
-        min-width: 0 !important;
-    }
-    .st-key-version_nav [data-testid="stColumn"]:nth-of-type(1),
-    .st-key-version_nav [data-testid="stColumn"]:nth-of-type(3) { flex: 1 1 0 !important; }
-    .st-key-version_nav [data-testid="stColumn"]:nth-of-type(2) { flex: 3.5 1 0 !important; }
     </style>
 """
 )
@@ -322,7 +365,7 @@ comment = st.text_area(
 
 with st.expander("Optional: Your draft reply"):
     draft = st.text_area(
-        "",
+        "Your draft reply",
         key="draft_input",
         placeholder=(
             "Write your reply draft here, or leave blank for the assistant to generate it..."
@@ -343,6 +386,9 @@ if st.button("Generate a reply", type="primary"):
         # away, on its own re-run, rather than only after the whole button
         # click's work is already done.
         st.session_state.run = True
+        # A fresh reply for whatever is in the input boxes right now, as
+        # opposed to "Revise this reply", which revises the latest one.
+        st.session_state.revising = False
         st.rerun()
 
 if st.session_state.get("run") and st.session_state.generation_count >= MAX_GENERATIONS_PER_SESSION:
@@ -385,30 +431,62 @@ if st.session_state.get("run"):
 
         base_prompt = load_prompt("prompt2.txt").format(formatted_strategies=strat_block)
 
-        feedback_txt = st.session_state.get("feedback", "").strip()
-        rating_val = st.session_state.get("rating")
-
         mode_block = MODE_GUIDANCE.get(mode, "")
         low_engagement_block = (
             LOW_ENGAGEMENT_MODE_BLOCK if engagement and not engagement.worth_engaging else ""
         )
+        prompt = (
+            low_engagement_block + mode_block + base_prompt + MODE_EXPLANATION_ADDON.get(mode, "")
+        )
 
-        if feedback_txt or rating_val is not None:
-            feedback_block = (
-                f"You just received the following feedback on your previous reply:\n"
-                f'- Written feedback: "{feedback_txt}"\n'
-                f"- Rating: {rating_val}/5\n\n"
-                f"Revise your reply accordingly before applying the rest of the instructions. You should still ask for clarifictaion if the input is not relate dto animal advocacy. \n"  # noqa: E501
-                f"If the rating is under 4, that means the user wasn’t fully satisfied — make sure to address their concerns. The lower the rating, the more you should change the reply. \n"  # noqa: E501
-                f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. If you did not include any part of the feedback, explain why. \n"  # noqa: E501
-            )
+        # Feedback only counts when the user clicked "Regenerate with
+        # feedback" - a plain "Generate a reply" always starts fresh.
+        revising = st.session_state.get("revising", False)
+        feedback_txt = (st.session_state.get("feedback") or "").strip() if revising else ""
+        rating_val = st.session_state.get("rating") if revising else None
 
-            prompt = low_engagement_block + mode_block + feedback_block + "\n" + base_prompt
+        # The reply being revised: the most recent real reply (skipping any
+        # clarifying questions). next(..., None) returns the first match from
+        # the generator, or None if there isn't one.
+        previous = next(
+            (
+                (i + 1, h)
+                for i, h in reversed(list(enumerate(st.session_state.history)))
+                if not h.get("is_clarification")
+            ),
+            None,
+        )
+        revision = None
+        if revising and previous:
+            prev_version, prev_entry = previous
+            # Sent to the model alongside the comment and draft, so it can
+            # actually see the reply it's being asked to improve.
+            revision = {
+                "previous_reply": prev_entry["reply"],
+                "feedback": feedback_txt,
+                "rating": rating_val,
+            }
+            if feedback_txt:
+                context = (
+                    f'Revised from version {prev_version} using your feedback: "{feedback_txt}"'
+                )
+            else:
+                context = f"A different take on version {prev_version}"
+            if rating_val is not None:
+                context += f" (you rated it {rating_val}/5)"
+        elif not st.session_state.history:
+            context = "First reply"
+        elif (
+            json.dumps({"comment": comment, "draft_reply": draft})
+            != (st.session_state.history[-1]["user_input"])
+        ):
+            context = "New reply for your updated input"
         else:
-            prompt = low_engagement_block + mode_block + base_prompt
-        prompt += MODE_EXPLANATION_ADDON.get(mode, "")
+            context = "New reply for the same input"
 
-        parsed = generate_reply(client, prompt, comment, draft, usage_log=usage_log)
+        parsed = generate_reply(
+            client, prompt, comment, draft, usage_log=usage_log, revision=revision
+        )
 
         user_in = json.dumps({"comment": comment, "draft_reply": draft})
         itype = parsed.input_type
@@ -431,6 +509,9 @@ if st.session_state.get("run"):
                     "suggested_improvements": None,
                     "ultimate_reply": None,
                     "session_id": session_id,
+                    "is_clarification": True,
+                    "context": "The assistant needs a bit more information",
+                    "draft": draft.strip(),
                 }
             )
 
@@ -459,6 +540,7 @@ if st.session_state.get("run"):
                 is_test=TESTING_MODE,
             )
             st.session_state.run = False
+            st.session_state.revising = False
             st.rerun()
 
         # Quietly score the reply for internal quality monitoring - never
@@ -481,10 +563,21 @@ if st.session_state.get("run"):
                 "engagement_reason": (
                     engagement.reason if engagement and not engagement.worth_engaging else None
                 ),
+                # Why this version exists, shown above it (see "context" above).
+                "context": context,
+                # The model's note on what it changed, and what it's
+                # comparing against (the previous version or the user's draft).
+                "what_changed": parsed.what_changed if (revision or draft.strip()) else "",
+                "what_changed_label": (
+                    f"What changed from version {previous[0]}"
+                    if revision
+                    else "What changed from your draft"
+                ),
+                # The user's own draft, if any, shown above the reply so the
+                # two are easy to compare.
+                "draft": draft.strip(),
             }
         )
-        if len(st.session_state.history) > 1:
-            st.session_state.history_index = len(st.session_state.history) - 2
 
         log_to_firestore(
             db,
@@ -509,110 +602,39 @@ if st.session_state.get("run"):
             worth_engaging=engagement.worth_engaging if engagement else None,
             engagement_reason=engagement.reason if engagement else None,
             quality_scores=quality_scores.model_dump(),
+            what_changed=parsed.what_changed,
             is_test=TESTING_MODE,
         )
 
         st.session_state.run = False
+        st.session_state.revising = False
         st.session_state.rating = None
         st.session_state.feedback = None
         st.session_state.rating_touched = False
+        # Empty the stars and the feedback box, so feedback on this version
+        # isn't silently reused the next time the user regenerates. Setting a
+        # widget's key here works because those widgets are only drawn
+        # further down the script.
+        st.session_state.rating_input = None
+        st.session_state.fb_input = ""
 
 if st.session_state.history:
-    if len(st.session_state.history) == 1:
-        # Only one reply exists yet, so just show it - no need for the
-        # "previous versions" browser below.
-        latest = st.session_state.history[-1]
-        if latest.get("engagement_reason"):
-            st.warning(
-                f"⚠️ This comment may not be worth a full persuasive reply: "
-                f"{latest['engagement_reason']} The reply below sticks to stating "
-                f"values and correcting facts rather than trying to persuade."
-            )
-        st.markdown(
-            reply_card_html("Reply", latest["reply"], latest["explanation"]),
-            unsafe_allow_html=True,
+    history = st.session_state.history
+    latest = history[-1]
+    total = len(history)
+
+    # The newest version always comes first, in full. Earlier versions are
+    # tucked away at the bottom of the page (see "Earlier versions" below).
+    if latest.get("engagement_reason"):
+        st.warning(
+            f"⚠️ This comment may not be worth a full persuasive reply: "
+            f"{latest['engagement_reason']} The reply below sticks to stating "
+            f"values and correcting facts rather than trying to persuade."
         )
-
-    else:
-        # More than one reply exists (the user regenerated at least once),
-        # so show the latest reply next to a small browser for earlier ones.
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            latest = st.session_state.history[-1]
-            if latest.get("engagement_reason"):
-                st.warning(
-                    f"⚠️ This comment may not be worth a full persuasive reply: "
-                    f"{latest['engagement_reason']} The reply below sticks to stating "
-                    f"values and correcting facts rather than trying to persuade."
-                )
-            st.markdown(
-                reply_card_html("Latest reply", latest["reply"], latest["explanation"]),
-                unsafe_allow_html=True,
-            )
-
-        with col2:
-            total_versions = len(st.session_state.history) - 1  # Exclude latest
-
-            if total_versions > 0:
-                if "history_index" not in st.session_state:
-                    st.session_state.history_index = 0
-
-                # st.columns() normally stacks into separate rows on narrow
-                # screens, which would break up the ◀ / label / ▶ row into
-                # three disconnected blocks on mobile. Wrapping it in a
-                # keyed container gives Streamlit's generated markup a
-                # distinctive CSS class (".st-key-version_nav") that the
-                # scoped rule up in the st.html() block at the top of this
-                # file uses to force this one row to stay horizontal,
-                # without affecting any other column layout in the app.
-                with st.container(key="version_nav"):
-                    col_l, col_m, col_r = st.columns([1, 3.5, 1])
-                    with col_l:
-                        # on_click takes a function to run when the button
-                        # is pressed. Here that function is a "lambda" - a
-                        # small, unnamed function written inline - which
-                        # moves the history browser one step back, but
-                        # never below 0.
-                        st.button(
-                            " ◀ ",
-                            key="prev_btn",
-                            on_click=lambda: st.session_state.update(
-                                {"history_index": max(0, st.session_state.history_index - 1)}
-                            ),
-                            use_container_width=True,
-                        )
-                    with col_m:
-                        st.markdown(
-                            "<div style='text-align:center; font-weight:bold;'>"
-                            "Previous Versions</div>",
-                            unsafe_allow_html=True,
-                        )
-                    with col_r:
-                        st.button(
-                            " ▶ ",
-                            key="next_btn",
-                            on_click=lambda: st.session_state.update(
-                                {
-                                    "history_index": min(
-                                        total_versions - 1,
-                                        st.session_state.history_index + 1,
-                                    )
-                                }
-                            ),
-                            use_container_width=True,
-                        )
-
-                selected = st.session_state.history[st.session_state.history_index]
-                st.markdown(
-                    reply_card_html(
-                        f"Version {st.session_state.history_index + 1}",
-                        selected["reply"],
-                        selected["explanation"],
-                    ),
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.info("No previous versions yet.")
+    latest_label = "Reply" if total == 1 else f"Version {total} · latest"
+    st.markdown(
+        reply_card_html(latest_label, latest, show_context=total > 1), unsafe_allow_html=True
+    )
 
     st.markdown("### How was this reply?")
     # st.feedback("stars") is Streamlit's purpose-built rating widget - a
@@ -623,7 +645,12 @@ if st.session_state.history:
     # +1 converts it back to the 1-5 scale the rest of the app expects.
     stars = st.feedback("stars", key="rating_input", on_change=_mark_rating_touched)
     rate = stars + 1 if stars is not None else None
-    fb = st.text_area("Optional feedback (used only if you regenerate):", key="fb_input", height=68)
+    fb = st.text_area(
+        "What should change? (optional)",
+        key="fb_input",
+        height=68,
+        placeholder="e.g. Make it shorter, or less formal",
+    )
     # Only treat the rating as real if a star was actually clicked -
     # otherwise nothing has been selected yet, not a deliberate opinion,
     # and shouldn't be logged as though it were one.
@@ -634,7 +661,7 @@ if st.session_state.history:
     regen_col, new_col = st.columns([1, 1])
     with regen_col:
         regenerate = st.button(
-            "Regenerate with feedback",
+            "Revise this reply",
             icon=":material/refresh:",
             type="primary",
             use_container_width=True,
@@ -644,6 +671,7 @@ if st.session_state.history:
 
     if regenerate:
         st.session_state.run = True
+        st.session_state.revising = True
         st.rerun()
 
     if new_session:
@@ -656,6 +684,25 @@ if st.session_state.history:
             if key != "seen_intro":
                 del st.session_state[key]
         st.rerun()
+
+    if total > 1:
+        # Older versions, newest first, collapsed by default. The keyed
+        # container gets a max height in the CSS above, so a long list
+        # scrolls inside the box instead of making the page very long.
+        with st.expander(f"Earlier versions ({total - 1})"):
+            with st.container(key="earlier_versions"):
+                # range(total - 1, 0, -1) counts down: total-1, ..., 2, 1.
+                for version in range(total - 1, 0, -1):
+                    st.markdown(
+                        reply_card_html(
+                            f"Version {version}",
+                            history[version - 1],
+                            # Only repeat the draft if it differs from the
+                            # one shown with the latest version.
+                            show_draft=history[version - 1].get("draft") != latest.get("draft"),
+                        ),
+                        unsafe_allow_html=True,
+                    )
 
 # Footer shown on every page load, below everything else - a link back to
 # the source code on GitHub.

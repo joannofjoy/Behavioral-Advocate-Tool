@@ -32,7 +32,7 @@ A major challenge in animal advocacy is that even the most well-intentioned mess
 
 - **Smart Tag Extraction** - Detects the key themes, topics, and emotional tones in any comment to understand the conversation’s core.
 
-- **Strategy Matching with RAG** - Uses Retrieval-Augmented Generation to instantly connect your conversation context with a curated library of behavioral science–backed advocacy strategies.
+- **Tag-Based Strategy Matching** - Tags each comment by topic, argument type, and emotional tone, then pulls in the strategies from a curated library of behavioral science-backed techniques that share those tags, so the reply is written with the techniques that fit this particular comment.
 
 - **Multi-Step Prompt Chaining** - Breaks the task into expert stages: tag extraction → strategy selection → persuasive reply → feedback-driven regeneration.
 

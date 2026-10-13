@@ -80,6 +80,7 @@ def log_to_firestore(
     engagement_reason=None,
     quality_scores=None,
     is_test=False,
+    what_changed=None,
 ):
     """Save one reply/session record to the "session_logs" collection.
 
@@ -149,6 +150,9 @@ def log_to_firestore(
         # under - lets future analysis exclude deliberate testing sessions
         # from real visitor data without having to guess from the content.
         "is_test": is_test,
+        # The model's note on how this reply differs from the user's draft
+        # or from the version it revised. Empty when there was neither.
+        "what_changed": what_changed,
     }
     try:
         # uuid.uuid4() generates a random, practically-unique ID to use as

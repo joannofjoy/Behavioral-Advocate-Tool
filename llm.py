@@ -51,6 +51,11 @@ class ReplyResponse(BaseModel):
     message: str = ""
     follow_up_question: str = ""
     explanation: str = ""
+    # What changed compared with the user's own draft, or with the previous
+    # version when revising. Empty when there was nothing to compare against.
+    # A separate field, rather than part of "explanation", because the model
+    # reliably fills in a required field but often skips a writing rule.
+    what_changed: str = ""
     input_type: str = "unknown"
     needs_clarification: bool = False
     # The exact text the model returned, before any parsing/validation -
@@ -258,11 +263,14 @@ def assess_engagement(client, comment, model=MODEL_NAME, usage_log=None):
         return EngagementAssessment()
 
 
-def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=None):
+def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=None, revision=None):
     """Ask GPT to write (or improve) the persuasive reply.
 
     "prompt" is the full system prompt built by app.py (prompt2.txt plus the
-    matched strategies, and any previous feedback). Returns a validated
+    matched strategies and mode guidance). "revision" is only passed when
+    the user asked to revise an earlier reply: a dict with "previous_reply",
+    "feedback", and "rating", which gets sent along with the comment and
+    draft (prompt2.txt explains to the model what to do with it). Returns a validated
     ReplyResponse - e.g. ReplyResponse(message=..., explanation=..., ...).
     If the call fails or the model's JSON doesn't match the expected shape,
     returns a ReplyResponse that asks the user to try again, reusing the
@@ -273,16 +281,17 @@ def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=N
     _record_usage above.
     """
     content = ""
+    user_input = {"comment": comment, "draft_reply": draft}
+    if revision:
+        # "**revision" unpacks the dict, adding its keys into this one.
+        user_input = {**user_input, **revision}
     try:
         r = _create_completion(
             client,
             model=model,
             messages=[
                 {"role": "system", "content": prompt},
-                {
-                    "role": "user",
-                    "content": json.dumps({"comment": comment, "draft_reply": draft}),
-                },
+                {"role": "user", "content": json.dumps(user_input)},
             ],
             temperature=REPLY_TEMPERATURE,
             max_tokens=REPLY_MAX_TOKENS,
