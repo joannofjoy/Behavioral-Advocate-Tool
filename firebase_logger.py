@@ -75,7 +75,7 @@ def log_to_firestore(
     usage_details=None,
     tokens_used=None,
     cost_usd=None,
-    relationship_context=None,
+    use_case=None,
     worth_engaging=None,
     engagement_reason=None,
     quality_scores=None,
@@ -130,9 +130,12 @@ def log_to_firestore(
         "usage_details": usage_details,
         "tokens_used": tokens_used,
         "cost_usd": cost_usd,
-        # "A stranger online" or "Someone I know (family, friend, etc.)" -
-        # which tone guidance the reply was generated under.
-        "relationship_context": relationship_context,
+        # Which mode the reply was generated in: "Online comments", "Street
+        # outreach practice", or "Family & friends" (see MODE_* in app.py).
+        # Older records have a "relationship_context" field instead, from
+        # when there were only two options: "A stranger online" (now "Online
+        # comments") and "Someone I know" (now "Family & friends").
+        "use_case": use_case,
         # None when there was no comment to assess (draft-only input);
         # otherwise whether assess_engagement() judged this comment likely
         # to benefit from a genuine persuasive reply, and why not if not.

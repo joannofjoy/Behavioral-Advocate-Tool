@@ -50,24 +50,71 @@ def _mark_rating_touched():
     st.session_state.rating_touched = True
 
 
-# The two options for "who is this reply going to," and the extra prompt
-# instruction added for the second one. A stranger online is a one-off
-# exchange; someone the user actually knows is an ongoing relationship, so
-# the tone guidance shifts accordingly - family, friends, and partners all
-# get lumped into one "someone I know" option rather than separate ones,
-# since the real distinction that changes the advice is "ongoing
-# relationship vs. one-off," not the exact kind of relationship.
-AUDIENCE_STRANGER = "A stranger online"
-AUDIENCE_KNOWN = "Someone I know (family, friend, etc.)"
+# The three things the app can be used for. The main prompt (prompt2.txt)
+# is written for online comments, so that mode needs no extra instructions;
+# the other two get a short block of guidance put in front of the prompt
+# that changes what kind of message to write.
+#
+# - Online comments: a one-off exchange with a stranger, in writing.
+# - Street outreach: an activist practicing what to say out loud to a
+#   passer-by, so the reply has to work as spoken words.
+# - Family & friends: an ongoing relationship, so keeping things warm
+#   matters more than winning this one conversation.
+MODE_ONLINE = "Online comments"
+MODE_STREET = "Street outreach practice"
+MODE_FAMILY = "Family & friends"
 
-RELATIONSHIP_GUIDANCE = {
-    AUDIENCE_KNOWN: (
+MODE_GUIDANCE = {
+    MODE_STREET: (
+        "You are helping an activist prepare for in-person street outreach (for "
+        "example, talking with a passer-by at an outreach stall or demonstration), "
+        "not write an online comment. Write the message as words to be said out "
+        "loud: short, natural spoken sentences, no links, no references to 'your "
+        "comment' or 'this post', and nothing that sounds scripted or recited. "
+        "Street conversations are a back-and-forth, so keep it brief and usually "
+        "end with a genuine, open question that invites the person to keep "
+        "talking.\n\n"
+    ),
+    MODE_FAMILY: (
         "You are helping reply to someone the user actually knows well - a family "
         "member, friend, or similar - not an anonymous stranger online. This is an "
         "ongoing relationship, not a one-off exchange, so prioritize preserving "
         "warmth and long-term openness over winning this specific exchange. It's "
         "fine to plant a seed rather than push for full conversion right now, and "
-        "avoid anything that would sting coming from someone they're close to.\n\n"
+        "avoid anything that would sting coming from someone they're close to. "
+        "Write the message so it works either said out loud or sent as a text.\n\n"
+    ),
+}
+
+# Extra instructions added at the very end of the prompt rather than the
+# start. The main prompt has its own rules for the explanation field ("2-4
+# sentences..."), and the model tends to follow whichever instruction it
+# read last - a request placed at the start kept getting ignored.
+MODE_EXPLANATION_ADDON = {
+    MODE_STREET: (
+        "\n\nFor this street outreach reply, the explanation field must end with "
+        "one extra sentence starting with 'Delivery tip:' that gives the activist "
+        "one practical tip for saying this face to face (tone, pacing, or when to "
+        "pause and let the other person think)."
+    ),
+}
+
+# The label and placeholder for the main text box change with the mode, so
+# each one asks for the kind of input that actually makes sense for it.
+MODE_INPUT_TEXT = {
+    MODE_ONLINE: (
+        "What did they say?",
+        "Paste their comment here. You can add context too, like who they are "
+        "or where it was posted.",
+    ),
+    MODE_STREET: (
+        "What did they say, or which objection do you want to practice?",
+        'e.g. "But humans have always eaten meat." You can add context too, '
+        "like the setting or who you were talking to.",
+    ),
+    MODE_FAMILY: (
+        "What did they say, and who are they to you?",
+        "e.g. My dad said at dinner that veganism is just a trend.",
     ),
 }
 
@@ -93,10 +140,51 @@ client = get_llm_client()
 db = init_firebase()
 strategies = load_strategies()
 
+# The steps shown in the "How it works" popup.
+INSTRUCTION_STEPS = [
+    "Pick what you're using it for: online comments, street outreach practice, "
+    "or talking with family and friends.",
+    "Paste what the other person said, plus any context that helps.",
+    "Get a reply, along with a short explanation of the behavioral science technique behind it.",
+    "Rate the reply or add feedback, then regenerate for an improved version.",
+]
+
+
+# @st.dialog is a decorator: it turns the function below it into a popup
+# window. Calling show_instructions() opens the popup and runs the code
+# inside it there, instead of on the main page.
+@st.dialog("Welcome! Here's how it works")
+def show_instructions():
+    """Popup with short instructions for first-time visitors."""
+    # enumerate(..., start=1) hands back each step together with its number,
+    # starting the count at 1 instead of 0.
+    st.markdown("\n".join(f"{i}. {step}" for i, step in enumerate(INSTRUCTION_STEPS, start=1)))
+    if st.button("Got it", type="primary"):
+        # Re-running the script is what closes the popup.
+        st.rerun()
+
+
+def reply_card_html(label, reply, explanation):
+    """Build the HTML for one reply card: a heading, the reply, and its
+    explanation underneath in a tinted box.
+
+    The reply and explanation come from the model, whose output is shaped by
+    whatever the visitor typed in, so it isn't fully trusted. html.escape(...)
+    turns characters like < and > into harmless text (&lt;, &gt;), so they can
+    never be read as real HTML tags or scripts once inserted into the page.
+    """
+    return (
+        f"<div class='reply-card'><h4>{html.escape(label)}</h4>"
+        f"<p>{html.escape(reply)}</p>"
+        f"<div class='explain'><strong>Why this works:</strong> "
+        f"{html.escape(explanation)}</div></div>"
+    )
+
+
 # ------------------- UI -------------------
 # This block injects some custom CSS (styling rules) into the page - things
-# Streamlit doesn't offer built-in controls for, like tightening up the
-# spacing above the title and making the reply text a bit smaller.
+# Streamlit's theme settings (.streamlit/config.toml) don't cover, like the
+# green title banner, the reply card, and tighter spacing.
 #
 # st.html() (rather than st.markdown with unsafe_allow_html) is the
 # correct way to inject a <style> tag - Streamlit sanitizes <style> tags
@@ -108,12 +196,66 @@ st.html(
        fixed at the top of the page and about 60px tall - padding-top needs
        to clear it, or the title renders mostly hidden underneath it. */
     .block-container { padding-top: 4rem; padding-bottom: 1rem; }
+    /* The green title banner at the top of the page. */
+    .hero {
+        background: linear-gradient(135deg, #0f766e 0%, #16a34a 100%);
+        border-radius: 14px;
+        padding: 1.25rem 1.4rem;
+        color: #ffffff;
+    }
     /* Streamlit's own stylesheet styles h1 with higher specificity than a
-       plain tag selector, so !important is needed for this to actually win. */
-    h1 { font-size: 1.5rem !important; margin-bottom: 0.25rem !important; }
-    h3 { margin-top: 0.5rem !important; margin-bottom: 0.25rem !important; }
-    .reply-line { font-size: 0.9rem; margin-bottom: 0.4rem; }
-    .reply-label { font-weight: bold; margin-right: 0.25rem; }
+       plain selector, so !important is needed for these to actually win. */
+    .hero h1 {
+        color: #ffffff !important;
+        font-size: 1.55rem !important;
+        line-height: 1.2 !important;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.35rem !important;
+        padding: 0 !important;
+    }
+    .hero p { margin: 0; color: rgba(255, 255, 255, 0.9); font-size: 0.95rem; }
+    h3 {
+        font-size: 1.2rem !important;
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    /* The currently selected mode pill: solid green with white text, so it
+       clearly stands out from the other two (Streamlit's default is a pale
+       tint). aria-checked="true" is how Streamlit marks the selected one. */
+    .st-key-mode_input button[aria-checked="true"] {
+        background: #15803d !important;
+        border-color: #15803d !important;
+        color: #ffffff !important;
+    }
+    .st-key-mode_input button[aria-checked="true"] * { color: #ffffff !important; }
+    /* The reply and its explanation: a white card with a green left edge. */
+    .reply-card {
+        background: #ffffff;
+        border-left: 4px solid #15803d;
+        border-radius: 14px;
+        box-shadow: 0 4px 14px rgba(20, 60, 35, 0.08);
+        padding: 1rem 1.1rem;
+        margin-bottom: 0.25rem;
+    }
+    .reply-card h4 {
+        margin: 0 0 0.4rem !important;
+        padding: 0 !important;
+        font-size: 0.72rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #15803d;
+    }
+    .reply-card p { margin: 0 0 0.75rem; }
+    .reply-card .explain {
+        background: #e6f4ea;
+        border-radius: 10px;
+        padding: 0.7rem 0.85rem;
+        font-size: 0.88rem;
+    }
+    .reply-card .explain strong { color: #15803d; }
+    /* Soft shadow on the filled green buttons, so the main actions pop. */
+    [data-testid="stBaseButton-primary"] { box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3); }
+    .app-footer { text-align: center; font-size: 0.8rem; margin-top: 1.5rem; opacity: 0.7; }
     /* Streamlit puts a fairly generous default gap between every element
        on the page (the comment box, the button, each reply line, the
        feedback widgets, ...) - tightening it here is the single biggest
@@ -141,23 +283,40 @@ st.html(
 """
 )
 
-st.markdown("# Animal Advocacy Messaging Assistant")
-st.write(
-    "This tool helps improve social media comments for better "
-    "persuasiveness using behavioral science."
+st.html(
+    "<div class='hero'>"
+    "<h1>Animal Advocacy Messaging Assistant</h1>"
+    "<p>Talk about animals and veganism more persuasively - online, on the "
+    "street, or with family - using behavioral science.</p>"
+    "</div>"
 )
 
-audience = st.radio(
-    "Who are you replying to?",
-    [AUDIENCE_STRANGER, AUDIENCE_KNOWN],
-    key="audience_input",
-    horizontal=True,
+# A small text-style button under the title that reopens the instructions.
+if st.button("How it works", icon=":material/info:", type="tertiary", key="how_it_works"):
+    show_instructions()
+# On a visitor's first page load, open the instructions automatically.
+# "seen_intro" stays set for the rest of the browser session (even after
+# "New session", see below), so the popup only appears once.
+elif "seen_intro" not in st.session_state:
+    st.session_state.seen_intro = True
+    show_instructions()
+
+# st.segmented_control shows the options as a row of pill buttons.
+# required=True stops the user from un-selecting the current option, which
+# would otherwise leave no mode selected at all.
+mode = st.segmented_control(
+    "What are you using this for?",
+    [MODE_ONLINE, MODE_STREET, MODE_FAMILY],
+    default=MODE_ONLINE,
+    required=True,
+    key="mode_input",
 )
 
+comment_label, comment_placeholder = MODE_INPUT_TEXT[mode]
 comment = st.text_area(
-    "What did the other person say? Who are they? Any additional context?",
+    comment_label,
     key="comment_input",
-    placeholder="Paste the other person's comment and add any additional context here...",
+    placeholder=comment_placeholder,
     height=80,
 )
 
@@ -172,7 +331,7 @@ with st.expander("Optional: Your draft reply"):
         height=80,
     )
 
-if st.button("Generate a reply"):
+if st.button("Generate a reply", type="primary"):
     if not comment.strip() and not draft.strip():
         st.warning("Enter context or draft.")
     elif len(comment) > MAX_INPUT_CHARS or len(draft) > MAX_INPUT_CHARS:
@@ -229,7 +388,7 @@ if st.session_state.get("run"):
         feedback_txt = st.session_state.get("feedback", "").strip()
         rating_val = st.session_state.get("rating")
 
-        relationship_block = RELATIONSHIP_GUIDANCE.get(audience, "")
+        mode_block = MODE_GUIDANCE.get(mode, "")
         low_engagement_block = (
             LOW_ENGAGEMENT_MODE_BLOCK if engagement and not engagement.worth_engaging else ""
         )
@@ -244,9 +403,10 @@ if st.session_state.get("run"):
                 f"After applying the feedback, in <explanation> field include describing how you changed the reply in response to the feedback. If you did not include any part of the feedback, explain why. \n"  # noqa: E501
             )
 
-            prompt = low_engagement_block + relationship_block + feedback_block + "\n" + base_prompt
+            prompt = low_engagement_block + mode_block + feedback_block + "\n" + base_prompt
         else:
-            prompt = low_engagement_block + relationship_block + base_prompt
+            prompt = low_engagement_block + mode_block + base_prompt
+        prompt += MODE_EXPLANATION_ADDON.get(mode, "")
 
         parsed = generate_reply(client, prompt, comment, draft, usage_log=usage_log)
 
@@ -293,7 +453,7 @@ if st.session_state.get("run"):
                 usage_details=usage_log,
                 tokens_used=sum(u["total_tokens"] or 0 for u in usage_log),
                 cost_usd=sum(u["cost"] or 0 for u in usage_log),
-                relationship_context=audience,
+                use_case=mode,
                 worth_engaging=engagement.worth_engaging if engagement else None,
                 engagement_reason=engagement.reason if engagement else None,
                 is_test=TESTING_MODE,
@@ -345,7 +505,7 @@ if st.session_state.get("run"):
             usage_details=usage_log,
             tokens_used=sum(u["total_tokens"] or 0 for u in usage_log),
             cost_usd=sum(u["cost"] or 0 for u in usage_log),
-            relationship_context=audience,
+            use_case=mode,
             worth_engaging=engagement.worth_engaging if engagement else None,
             engagement_reason=engagement.reason if engagement else None,
             quality_scores=quality_scores.model_dump(),
@@ -361,13 +521,6 @@ if st.session_state.history:
     if len(st.session_state.history) == 1:
         # Only one reply exists yet, so just show it - no need for the
         # "previous versions" browser below.
-        #
-        # The reply/explanation text below comes from GPT, and
-        # GPT's output is itself shaped by whatever the visitor typed in as
-        # the comment/draft - so it isn't fully trusted. html.escape(...)
-        # converts characters like < and > into their safe HTML entities
-        # (&lt;, &gt;) so that text can never be interpreted as actual HTML
-        # tags/scripts when it's inserted into the page below.
         latest = st.session_state.history[-1]
         if latest.get("engagement_reason"):
             st.warning(
@@ -376,13 +529,7 @@ if st.session_state.history:
                 f"values and correcting facts rather than trying to persuade."
             )
         st.markdown(
-            f"<div class='reply-line'><span class='reply-label'>Reply:</span>"
-            f"{html.escape(latest['reply'])}</div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f"<div class='reply-line'><span class='reply-label'>Explanation:</span>"
-            f"{html.escape(latest['explanation'])}</div>",
+            reply_card_html("Reply", latest["reply"], latest["explanation"]),
             unsafe_allow_html=True,
         )
 
@@ -391,10 +538,6 @@ if st.session_state.history:
         # so show the latest reply next to a small browser for earlier ones.
         col1, col2 = st.columns([1, 1])
         with col1:
-            st.markdown(
-                "<div style='text-align:center; font-weight:bold;'>Latest Version</div><br>",
-                unsafe_allow_html=True,
-            )
             latest = st.session_state.history[-1]
             if latest.get("engagement_reason"):
                 st.warning(
@@ -403,13 +546,7 @@ if st.session_state.history:
                     f"values and correcting facts rather than trying to persuade."
                 )
             st.markdown(
-                f"<div class='reply-line'><span class='reply-label'>Latest Reply:</span>"
-                f"{html.escape(latest['reply'])}</div>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"<div class='reply-line'><span class='reply-label'>Explanation:</span>"
-                f"{html.escape(latest['explanation'])}</div>",
+                reply_card_html("Latest reply", latest["reply"], latest["explanation"]),
                 unsafe_allow_html=True,
             )
 
@@ -467,22 +604,17 @@ if st.session_state.history:
 
                 selected = st.session_state.history[st.session_state.history_index]
                 st.markdown(
-                    f"<div class='reply-line'>"
-                    f"<span class='reply-label'>"
-                    f"Reply Version {st.session_state.history_index + 1}:</span>"
-                    f"{html.escape(selected['reply'])}</div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(
-                    f"<div class='reply-line'><span class='reply-label'>Explanation:</span>"
-                    f"{html.escape(selected['explanation'])}</div>",
+                    reply_card_html(
+                        f"Version {st.session_state.history_index + 1}",
+                        selected["reply"],
+                        selected["explanation"],
+                    ),
                     unsafe_allow_html=True,
                 )
             else:
                 st.info("No previous versions yet.")
 
-    st.markdown("---")
-    st.markdown("### Feedback")
+    st.markdown("### How was this reply?")
     # st.feedback("stars") is Streamlit's purpose-built rating widget - a
     # compact row of star icons instead of a full-width slider, and it
     # natively returns None until the user actually clicks one (unlike the
@@ -498,15 +630,38 @@ if st.session_state.history:
     st.session_state.rating = rate if st.session_state.rating_touched else None
     st.session_state.feedback = fb
 
-    if st.button("🔁 Regenerate with feedback"):
+    # Two buttons side by side; st.columns returns one column per entry.
+    regen_col, new_col = st.columns([1, 1])
+    with regen_col:
+        regenerate = st.button(
+            "Regenerate with feedback",
+            icon=":material/refresh:",
+            type="primary",
+            use_container_width=True,
+        )
+    with new_col:
+        new_session = st.button("New session", icon=":material/add:", use_container_width=True)
+
+    if regenerate:
         st.session_state.run = True
         st.rerun()
 
-    if st.button("🆕 New session"):
-        # Delete every key currently in session_state, which wipes the
-        # conversation history, session id, etc. - the next re-run then
-        # falls through to the "if ... not in st.session_state" checks near
-        # the top of this file and starts fresh.
+    if new_session:
+        # Delete every key in session_state, which wipes the conversation
+        # history, session id, etc. - the next re-run then falls through to
+        # the "if ... not in st.session_state" checks near the top of this
+        # file and starts fresh. "seen_intro" is kept, so the instructions
+        # popup doesn't reappear for someone who has already read it.
         for key in list(st.session_state.keys()):
-            del st.session_state[key]
+            if key != "seen_intro":
+                del st.session_state[key]
         st.rerun()
+
+# Footer shown on every page load, below everything else - a link back to
+# the source code on GitHub.
+st.markdown(
+    "<div class='app-footer'>"
+    "<a href='https://github.com/joannofjoy/Behavioral-Advocate-Tool' target='_blank'>"
+    "View the source on GitHub</a></div>",
+    unsafe_allow_html=True,
+)

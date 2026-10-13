@@ -1,0 +1,20 @@
+# Streamlit's built-in theme settings: the app's colors, font, and corner
+# rounding. Anything Streamlit doesn't offer a setting for (the green title
+# banner, the reply card) is styled with CSS in the st.html() block in app.py.
+
+[theme]
+base = "light"
+# The green used for buttons, the selected mode, stars, and links.
+primaryColor = "#15803d"
+# Page background: a very pale green-grey, so white cards stand out on it.
+backgroundColor = "#f3f7f4"
+# Background of text boxes and other input widgets.
+secondaryBackgroundColor = "#ffffff"
+textColor = "#142019"
+linkColor = "#15803d"
+borderColor = "#d8e3dc"
+showWidgetBorder = true
+# "<name>:<url>" loads the font straight from Google Fonts.
+font = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap, sans-serif"
+headingFontWeights = [800, 700, 700, 700, 700, 700]
+baseRadius = "0.625rem"

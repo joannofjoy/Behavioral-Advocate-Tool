@@ -40,7 +40,15 @@ A major challenge in animal advocacy is that even the most well-intentioned mess
 
 - **Educational Explanations** - Every reply comes with an explanation naming the specific behavioral science technique used and why it fits the situation, so advocates learn as they go, not just copy-paste a message.
 
+- **Three Modes** - Online comments (the default), street outreach practice, and family & friends. Street outreach mode writes replies meant to be said out loud to a passer-by and adds a delivery tip, which makes it useful for activists rehearsing common objections before going out. Family & friends mode puts the long-term relationship ahead of winning one argument.
+
+- **Engagement Assessment** - Flags comments where a full persuasive reply probably isn't worth it (bad-faith trolling, an explicit refusal to discuss, extreme entrenchment) and switches to a short reply that states values calmly and corrects any factual errors, without trying to persuade.
+
+- **Natural-Sounding Replies** - The generation prompt steers away from the patterns that make text read as AI-written (em dashes, "it's not just X, it's Y", forced lists of three, uniform sentence rhythm), so replies sound like a person typed them.
+
 - **Feedback-Driven Regeneration** - Takes your rating and written feedback to produce a sharper, more targeted reply that better fits your advocacy style.
+
+- **Background Quality Scoring** - Every generated reply is scored by a separate, stronger judge model on how human it sounds, whether it addresses the actual point, specificity, persuasiveness, and tone. Scores are logged for later analysis, never shown in the UI.
 
 - **Cloud-Based Session Logging** - Saves every session securely to Firebase Firestore for analysis, refinement, and future improvements.
 
@@ -48,8 +56,7 @@ A major challenge in animal advocacy is that even the most well-intentioned mess
 
 - **Prompt Injection Protection** - Built-in defenses to detect and block attempts to bypass or override the assistant’s intended purpose.
 
-The behavioral techniques used in this tool come from various sources, including Faunalytics’ research library and the Center for Effective Vegan Advocacy (CEVA), alongside other established communication frameworks. 
-This prototype showcases a small sample of behavioral and communication techniques. The pool of techniques will be expanded upon with future development.
+The strategy library currently holds 41 techniques drawn from advocacy research (Faunalytics, CEVA), social and moral psychology, and Ed Winters' work on responding to common objections. The full list of sources is in [References](#references) below, and each strategy in `strategies.json` links to its own source.
 
 ## Demo
 
@@ -58,7 +65,7 @@ This prototype showcases a small sample of behavioral and communication techniqu
 
 ## Usage/Examples
 
-1. Paste a social media comment related to animal rights that you want to respond to and add any additional context.
+1. Pick a mode (online comments, street outreach practice, or family & friends), then enter what the other person said, plus any context that helps.
 2. Optionally, write your own draft reply.
 3. The assistant will:
    - Generate a persuasive response using behavioral strategies.
@@ -118,6 +125,34 @@ Attempts to:
 
 
 
+## References
+
+The strategies the assistant draws on come from the sources below.
+
+**Advocacy research**
+- Center for Effective Vegan Advocacy (CEVA) - [resources](https://veganadvocacy.org/resources/) (validating before redirecting, sharing a personal journey, asking thoughtful questions, calm modeling)
+- Faunalytics - [How to become a more effective vegan advocate](https://faunalytics.org/how-to-become-a-more-effective-vegan-advocate/)
+- Faunalytics - [Tactics in practice: the science of social media advocacy](https://faunalytics.org/tactics-in-practice-the-science-of-social-media-advocacy/)
+- Faunalytics - [Effective wild animal advocacy should consider diverse audiences](https://faunalytics.org/effective-wild-animal-advocacy-should-consider-diverse-audiences/)
+- Faunalytics - [Vegetarians choose change over justification for dairy](https://faunalytics.org/vegetarians-choose-change-over-justification-for-dairy/)
+- Faunalytics - [Empathy for animals does not have to be zero-sum](https://faunalytics.org/empathy-for-animals-does-not-have-to-be-zero-sum/)
+- Tobias Leenaert, via Faunalytics - [Time for pragmatic vegan advocacy](https://faunalytics.org/time-pragmatic-vegan-advocacy/)
+- Emily Moran Barwick (Bite-Size Vegan) - [Should vegans empathize with meat-eaters?](https://bitesizevegan.org/should-vegans-empathize-with-meat-eaters/)
+- Ed Winters (Earthling Ed) - [responses to common objections to veganism](https://www.all-creatures.org/articles2/act-earthling-ed.pdf) (used for 17 strategies, from the Socratic reframe to "one person can't make a difference")
+
+**Psychology research**
+- Piazza, Ruby, Loughnan et al. (2015) - the "4Ns" of meat justification (natural, normal, necessary, nice), [summarized by Faunalytics](https://faunalytics.org/rationalizing-meat-consumption-the-4ns/)
+- Rosenfeld, Rothgerber & Tomiyama (2020) - the psychology of flexitarianism, [summarized by Faunalytics](https://faunalytics.org/the-psychology-of-flexitarianism/)
+- Feinberg & Willer (2013) - [The moral roots of environmental attitudes](https://ccare.stanford.edu/wp-content/uploads/2015/06/Feinberg-and-Willer-2013-The-moral-roots-of-environmental-attitudes.pdf) (moral reframing)
+- Dhont, Hodson & Leite - the Social Dominance Human-Animal Relations Model (SD-HARM)
+- Paul Slovic - the [identifiable victim effect](https://en.wikipedia.org/wiki/Identifiable_victim_effect) and psychic numbing
+- Batson (perspective-taking), with Sassenrath, Vorauer & Hodges on [when perspective-taking backfires](https://www.sciencedirect.com/science/article/abs/pii/S2352250X2100169X)
+- The [foot-in-the-door technique](https://en.wikipedia.org/wiki/Foot-in-the-door_technique)
+- Greater Good Science Center - [How to depolarize your social media feeds](https://greatergood.berkeley.edu/article/item/how_to_depolarize_your_social_media_feeds)
+- Animal Ethics - [The objection that eating animals is natural](https://www.animal-ethics.org/the-objection-that-eating-animals-is-natural/)
+
+Two strategies are my own formulations: one for responding to ex-vegans (affirm the need behind leaving, then bridge to support) and one for validating real access barriers while reframing imperfect effort as progress.
+
 ## License
 
 All rights reserved. 
@@ -135,4 +170,6 @@ Joanna A. Mazurek
 ## Acknowledgements
 
 Project prepared under the mentorship of [**Ghaith Ahmad** (@RainZoneO2)](https://github.com/RainZoneO2) for the **Futurekind AI Fellowship (Electric Sheep)**.
+
+Further developed with mentorship from **James Morgan**, as part of the **Sentient Futures** project incubator.
 
