@@ -34,6 +34,7 @@ from config import (
     get_llm_api_key,
 )
 from jsonutils import parse_json_object
+from text_cleanup import remove_em_dashes
 
 # A "logger" writes messages to the console/server logs, separately from
 # whatever the user sees in the Streamlit UI. __name__ is a built-in
@@ -306,7 +307,10 @@ def generate_reply(client, prompt, comment, draft, model=MODEL_NAME, usage_log=N
         _record_usage(r, usage_log)
         # Captured before parsing, so it's still available below even if
         # parsing/validation is what ends up failing.
-        content = r.choices[0].message.content or ""
+        # Em dashes are swapped out here, before parsing, so the reply, the
+        # explanation, and the raw text the eval judges are all cleaned the
+        # same way (see text_cleanup.py for why).
+        content = remove_em_dashes(r.choices[0].message.content or "")
         parsed = parse_json_object(content)
         response = ReplyResponse.model_validate(parsed)
         response.raw_text = content

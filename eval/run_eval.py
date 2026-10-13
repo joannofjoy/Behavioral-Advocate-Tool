@@ -15,6 +15,7 @@
 #   python -m eval.run_eval               # just the model the app uses
 #   python -m eval.run_eval --all-models  # also compare other candidate models
 #   python -m eval.run_eval --retrieval ranked  # try a different way of picking strategies
+#   python -m eval.run_eval --strong-judge  # score with the stronger (pricier) judge
 
 import argparse
 import json
@@ -27,7 +28,7 @@ from prompt_builder import MODE_ONLINE, build_reply_prompt
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
 
-from .judge import JudgeScores, judge_output
+from .judge import ROUTINE_JUDGE_MODEL, STRONG_JUDGE_MODEL, JudgeScores, judge_output
 
 # Other models worth comparing against the app's default, used only with
 # --all-models. See https://openrouter.ai/models for what's available; a
@@ -54,6 +55,7 @@ SCORE_DIMENSIONS = [
     "injection_resistance",
     "draft_revision_handling",
     "mode_fit",
+    "harmful_request_refusal",
 ]
 
 # A drop this big on one case, compared with the previous run, gets listed
@@ -66,16 +68,24 @@ def load_cases():
         return json.load(f)
 
 
-def run_case(client, model, case, strategies, retrieval, strategy_vectors):
-    """Run one case through the real chain for one model, then judge it."""
+def run_case(client, model, case, strategies, retrieval, strategy_vectors, judge_model, usage_log):
+    """Run one case through the real chain for one model, then judge it.
+
+    Every API call's cost is added to "usage_log", so the run can report
+    what it cost in total.
+    """
     comment, draft = case["comment"], case["draft"]
     # .get(key, default) uses the default when a case doesn't set that key,
     # so older cases without a "mode" or "revision" still work.
     mode = case.get("mode", MODE_ONLINE)
     revision = case.get("revision")
 
-    tags = extract_tags(client, comment, draft, model=model)
-    engagement = assess_engagement(client, comment, model=model) if comment.strip() else None
+    tags = extract_tags(client, comment, draft, model=model, usage_log=usage_log)
+    engagement = (
+        assess_engagement(client, comment, model=model, usage_log=usage_log)
+        if comment.strip()
+        else None
+    )
     strats, _matched_tags = select_strategies(
         client,
         strategies,
@@ -85,18 +95,21 @@ def run_case(client, model, case, strategies, retrieval, strategy_vectors):
         retrieval,
         strategy_vectors=strategy_vectors,
         model=model,
+        usage_log=usage_log,
     )
     prompt = build_reply_prompt(
         strats,
         mode=mode,
         worth_engaging=engagement.worth_engaging if engagement else True,
     )
-    reply = generate_reply(client, prompt, comment, draft, model=model, revision=revision)
+    reply = generate_reply(
+        client, prompt, comment, draft, model=model, revision=revision, usage_log=usage_log
+    )
 
     # Skip the judge call entirely when the model returned nothing at all -
     # there's nothing meaningful to score, and it saves a judge-model call.
     if reply.raw_text.strip():
-        scores = judge_output(client, case, reply.raw_text)
+        scores = judge_output(client, case, reply.raw_text, judge_model, usage_log=usage_log)
     else:
         scores = JudgeScores(notes="Model returned no content - skipped judging.")
 
@@ -105,6 +118,7 @@ def run_case(client, model, case, strategies, retrieval, strategy_vectors):
         "model": model,
         "mode": mode,
         "retrieval": retrieval,
+        "judge_model": judge_model,
         "tags": tags,
         "worth_engaging": engagement.worth_engaging if engagement else None,
         "matched_strategies": [s["title"] for s in strats],
@@ -205,17 +219,20 @@ def print_case_drops(results, previous):
     print("\n".join(drops) if drops else "  none")
 
 
-def load_previous_run():
-    """Load the most recent earlier results file, or None if there isn't one.
+def load_previous_run(judge_model):
+    """Load the most recent earlier run scored by the same judge, or None.
 
-    The timestamped filenames sort in date order, so the last one in sorted
-    order is the newest.
+    Different judges score differently, so comparing across them would show
+    changes that never happened. Runs from before the judge was recorded
+    all used the strong judge. The timestamped filenames sort in date order,
+    so going through them newest first finds the latest match.
     """
-    files = sorted(RESULTS_DIR.glob("eval_*.json"))
-    if not files:
-        return None
-    with open(files[-1], encoding="utf-8") as f:
-        return json.load(f)
+    for path in sorted(RESULTS_DIR.glob("eval_*.json"), reverse=True):
+        with open(path, encoding="utf-8") as f:
+            run = json.load(f)
+        if run and run[0].get("judge_model", STRONG_JUDGE_MODEL) == judge_model:
+            return run
+    return None
 
 
 def main():
@@ -232,7 +249,13 @@ def main():
         default=STRATEGY_RETRIEVAL,
         help="how strategies are picked (default: what the app currently uses)",
     )
+    parser.add_argument(
+        "--strong-judge",
+        action="store_true",
+        help="score with the stronger, pricier judge (for bigger decisions)",
+    )
     args = parser.parse_args()
+    judge_model = STRONG_JUDGE_MODEL if args.strong_judge else ROUTINE_JUDGE_MODEL
     models = [MODEL_NAME] + (OTHER_CANDIDATE_MODELS if args.all_models else [])
 
     cases = load_cases()
@@ -241,10 +264,11 @@ def main():
     strategy_vectors = (
         load_strategy_embeddings(client, strategies) if args.retrieval == "ranked" else None
     )
-    print(f"Strategy retrieval: {args.retrieval}")
+    print(f"Strategy retrieval: {args.retrieval}   Judge: {judge_model}")
     # Read before this run saves its own file, so the comparison is against
     # the run that came before this one.
-    previous = load_previous_run()
+    previous = load_previous_run(judge_model)
+    usage_log = []
 
     results = []
     for model in models:
@@ -252,7 +276,16 @@ def main():
         for case in cases:
             print(f"  {case['id']}...", end=" ", flush=True)
             try:
-                result = run_case(client, model, case, strategies, args.retrieval, strategy_vectors)
+                result = run_case(
+                    client,
+                    model,
+                    case,
+                    strategies,
+                    args.retrieval,
+                    strategy_vectors,
+                    judge_model,
+                    usage_log,
+                )
                 print("done")
             except Exception as e:
                 result = {"case_id": case["id"], "model": model, "error": str(e)}
@@ -269,8 +302,22 @@ def main():
     print(f"\nWrote {len(results)} results to {out_path}")
 
     print_summary(results, previous)
+    # 'or 0' covers any call where the API didn't report a cost.
     if previous:
         print_case_drops(results, previous)
+    # A judge that fails (e.g. a wrong model name, or answers cut off for
+    # length) leaves rows with no scores, which would otherwise look like a
+    # quiet but valid run.
+    unjudged = [
+        r["case_id"] for r in results if "Judging call itself failed" in str(r.get("scores"))
+    ]
+    if unjudged:
+        print(
+            f"\nWARNING: the judge failed on {len(unjudged)} of {len(results)} cases, so "
+            "their scores are missing - check the logs before trusting this run."
+        )
+    total_cost = sum(u["cost"] or 0 for u in usage_log)
+    print(f"\nThis run cost ${total_cost:.3f} ({len(usage_log)} API calls).")
 
 
 if __name__ == "__main__":

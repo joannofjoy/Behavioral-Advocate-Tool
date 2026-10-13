@@ -103,12 +103,14 @@ Realistic and adversarial inputs were tested to verify:
 **Prompt Evaluation**
 
 A normal test suite can't catch the biggest risk in a prompt-chained app: a prompt tweak that quietly
-makes replies worse. The `eval/` directory holds a small evaluation set for that - 28 fixed inputs
-(friendly, hostile, vague, prompt-injection attempts, user drafts, revision requests, and street
-outreach and family conversations) run through the same prompt chain the live app uses. A separate,
-stronger judge model scores each output against a written rubric: persuasiveness, tone, how human it
-sounds, JSON format compliance, correct clarification, injection resistance, how well it improves on
-a draft or follows revision feedback, and how well it fits the chosen mode.
+makes replies worse. The `eval/` directory holds a small evaluation set for that - 34 fixed inputs
+(friendly, hostile, vague, user drafts, revision requests, street outreach and family conversations,
+and attack cases) run through the same prompt chain the live app uses. A judge model from a different
+provider than the one writing replies scores each output against a written rubric: persuasiveness,
+tone, how human it sounds, JSON format compliance, correct clarification, injection resistance,
+refusing harmful requests, how well it improves on a draft or follows revision feedback, and how well
+it fits the chosen mode. Routine runs use a cheap judge and cost a few cents; bigger decisions use a
+stronger one, and runs are only ever compared with runs scored by the same judge.
 
 One example of what it's used for: as the strategy library grows, exact tag matching will stop
 scaling, so I built an embedding-based retrieval step (RAG) as an alternative. It shortlists the
@@ -136,6 +138,19 @@ Attempts to:
 
 …will be deflected, logged, and flagged. Users may be restricted from access if abuse is detected. Future deployments may include stricter moderation and authentication.
 
+**Protecting the API budget.** The demo runs on a limited API budget, so usage is capped at several levels:
+- a daily spending cap for the whole app, after which it pauses until the next day, so even deliberate
+  misuse can't cost more than a set amount per day;
+- a daily reply limit per visitor, so one person can't use up the shared budget. Visitors are told apart
+  by a salted hash of their IP address, never the address itself;
+- a per-session reply limit, plus a pause after several inputs in a row that the assistant can't use
+  (off-topic requests, gibberish, empty input).
+
+**Security testing.** The evaluation set includes attack cases: direct and hidden prompt injection,
+role-play jailbreaks, requests for threats or fabricated studies, and attempts to use the app for
+unrelated work. A separate unit test checks that HTML or scripts pasted into the app are displayed as
+plain text rather than run in the browser.
+
 
 
 ## References
@@ -152,6 +167,8 @@ The strategies the assistant draws on come from the sources below.
 - Tobias Leenaert, via Faunalytics - [Time for pragmatic vegan advocacy](https://faunalytics.org/time-pragmatic-vegan-advocacy/)
 - Emily Moran Barwick (Bite-Size Vegan) - [Should vegans empathize with meat-eaters?](https://bitesizevegan.org/should-vegans-empathize-with-meat-eaters/)
 - Ed Winters (Earthling Ed) - [responses to common objections to veganism](https://www.all-creatures.org/articles2/act-earthling-ed.pdf) (used for 17 strategies, from the Socratic reframe to "one person can't make a difference")
+- Faunalytics (2014) - [Study of Current and Former Vegetarians and Vegans](https://faunalytics.org/a-summary-of-faunalytics-study-of-current-and-former-vegetarians-and-vegans/) (why people leave veganism, and how many would come back)
+- Anderson & Milyavskaya (2022), via Faunalytics - [Going vegan or vegetarian: barriers and strategies](https://faunalytics.org/going-veg-barriers-and-strategies/) (which barriers make new vegans quit, and which strategies help them stay)
 
 **Psychology research**
 - Piazza, Ruby, Loughnan et al. (2015) - the "4Ns" of meat justification (natural, normal, necessary, nice), [summarized by Faunalytics](https://faunalytics.org/rationalizing-meat-consumption-the-4ns/)
@@ -163,8 +180,6 @@ The strategies the assistant draws on come from the sources below.
 - The [foot-in-the-door technique](https://en.wikipedia.org/wiki/Foot-in-the-door_technique)
 - Greater Good Science Center - [How to depolarize your social media feeds](https://greatergood.berkeley.edu/article/item/how_to_depolarize_your_social_media_feeds)
 - Animal Ethics - [The objection that eating animals is natural](https://www.animal-ethics.org/the-objection-that-eating-animals-is-natural/)
-
-Two strategies are my own formulations: one for responding to ex-vegans (affirm the need behind leaving, then bridge to support) and one for validating real access barriers while reframing imperfect effort as progress.
 
 ## License
 

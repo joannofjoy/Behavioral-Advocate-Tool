@@ -85,6 +85,16 @@ STRATEGIES_PER_REPLY = 3
 MAX_INPUT_CHARS = 2000
 MAX_GENERATIONS_PER_SESSION = 15
 
+# Limits that protect the API credits from being drained (see
+# usage_limits.py). The daily spend cap covers everyone together, so even
+# deliberate abuse can't cost more than this per day; the per-visitor limit
+# stops one person using up that shared budget alone.
+DAILY_SPEND_LIMIT_USD = float(os.getenv("DAILY_SPEND_LIMIT_USD", "2.0"))
+VISITOR_DAILY_REPLY_LIMIT = int(os.getenv("VISITOR_DAILY_REPLY_LIMIT", "30"))
+# After this many inputs in a row that the assistant couldn't use (off-topic,
+# empty, or gibberish), it stops generating for that session.
+MAX_CLARIFICATIONS_IN_A_ROW = 5
+
 # Set to "true" in a local .env (never on Streamlit Cloud) to flag every
 # session from this run as test data rather than real visitor traffic.
 # There's no way to reconstruct this after the fact - Firestore records

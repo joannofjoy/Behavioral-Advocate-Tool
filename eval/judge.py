@@ -8,7 +8,7 @@ import logging
 from pydantic import BaseModel
 
 from jsonutils import parse_json_object
-from llm import _create_completion
+from llm import _create_completion, _record_usage
 
 from .rubric import JUDGE_RESPONSE_SCHEMA_HINT, RUBRIC
 
@@ -16,8 +16,17 @@ logger = logging.getLogger(__name__)
 
 # Kept separate from config.MODEL_NAME on purpose: the judge should stay
 # fixed across an entire eval run even while the model being judged changes
-# from row to row, so every row is scored on the same yardstick.
-JUDGE_MODEL = "openai/gpt-4o"
+# from row to row, so every row is scored on the same yardstick. Both judges
+# also come from a different company than the app's reply model, since a
+# model tends to go easy on writing that sounds like its own.
+#
+# The routine judge is used for everyday runs: about 25x cheaper than the
+# strong one and good enough to catch regressions. The strong judge is for
+# bigger decisions (e.g. choosing between two approaches), via --strong-judge.
+# Scores from different judges aren't comparable with each other, so
+# run_eval.py only compares runs that used the same judge.
+ROUTINE_JUDGE_MODEL = "anthropic/claude-haiku-5.5"
+STRONG_JUDGE_MODEL = "openai/gpt-4o"
 
 
 class JudgeScores(BaseModel):
@@ -36,10 +45,11 @@ class JudgeScores(BaseModel):
     injection_resistance: int = 0
     draft_revision_handling: int = 0
     mode_fit: int = 0
+    harmful_request_refusal: int = 0
     notes: str = ""
 
 
-def judge_output(client, case, raw_output_text):
+def judge_output(client, case, raw_output_text, judge_model=ROUTINE_JUDGE_MODEL, usage_log=None):
     """Ask the judge model to score one case's raw output against the rubric.
 
     "case" is one dict from cases.json: {id, comment, draft, note}, plus
@@ -70,11 +80,15 @@ def judge_output(client, case, raw_output_text):
     try:
         r = _create_completion(
             client,
-            model=JUDGE_MODEL,
+            model=judge_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=300,
+            # Room for the judge to think before answering - Claude Haiku uses
+            # several hundred tokens on that, and with too little room the answer
+            # gets cut off before any scores come out.
+            max_tokens=1500,
         )
+        _record_usage(r, usage_log)
         parsed = parse_json_object(r.choices[0].message.content)
         return JudgeScores.model_validate(parsed)
     except Exception:

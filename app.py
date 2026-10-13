@@ -9,13 +9,13 @@
 # Streamlit gives every user session a dictionary called
 # st.session_state that keeps its values across re-runs.
 
-import html
 import json
 import uuid
 
 import streamlit as st
 
 from config import (
+    MAX_CLARIFICATIONS_IN_A_ROW,
     MAX_GENERATIONS_PER_SESSION,
     MAX_INPUT_CHARS,
     STRATEGY_RETRIEVAL,
@@ -32,6 +32,8 @@ from llm import (
 from prompt_builder import MODE_FAMILY, MODE_ONLINE, MODE_STREET, MODES, build_reply_prompt
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
+from ui_html import reply_card_html
+from usage_limits import check_limits, record_usage, visitor_id
 
 # Give this browser session a unique ID (used to group its log entries in
 # Firestore), but only the first time this code runs for this session -
@@ -45,6 +47,10 @@ if "generation_count" not in st.session_state:
     st.session_state.generation_count = 0  # replies generated so far this session
 if "rating_touched" not in st.session_state:
     st.session_state.rating_touched = False  # did the user actually move the rating slider?
+if "clarifications_in_a_row" not in st.session_state:
+    # How many inputs in a row the assistant couldn't use (off-topic, empty,
+    # gibberish); generating stops for the session once this gets too high.
+    st.session_state.clarifications_in_a_row = 0
 
 
 def _mark_rating_touched():
@@ -119,47 +125,6 @@ def show_instructions():
     if st.button("Got it", type="primary"):
         # Re-running the script is what closes the popup.
         st.rerun()
-
-
-def reply_card_html(label, entry, show_context=True, show_draft=True):
-    """Build the HTML for one version's card.
-
-    "entry" is one item from st.session_state.history. The card shows, in
-    order: a heading, a short line saying why this version exists (e.g.
-    "Revised from version 1 using your feedback"), the user's own draft if
-    they gave one, the reply, and the explanation in a tinted box.
-
-    Everything shown here comes from the visitor or from the model (whose
-    output is shaped by what the visitor typed), so none of it is fully
-    trusted. html.escape(...) turns characters like < and > into harmless
-    text (&lt;, &gt;), so they can never be read as real HTML tags or
-    scripts once inserted into the page.
-    """
-    parts = [f"<div class='reply-card'><h4>{html.escape(label)}</h4>"]
-    # .get() returns None instead of raising an error when a key is missing,
-    # which keeps this working for history entries made before these
-    # fields existed.
-    if show_context and entry.get("context"):
-        parts.append(f"<div class='context'>{html.escape(entry['context'])}</div>")
-    if show_draft and entry.get("draft"):
-        parts.append(
-            f"<div class='draft'><span>Your draft</span>{html.escape(entry['draft'])}</div>"
-        )
-    parts.append(f"<p>{html.escape(entry['reply'])}</p>")
-    if entry.get("what_changed"):
-        parts.append(
-            f"<div class='explain changed'><strong>"
-            f"{html.escape(entry.get('what_changed_label', 'What changed'))}:</strong> "
-            f"{html.escape(entry['what_changed'])}</div>"
-        )
-    # A clarifying question has no technique to explain.
-    if not entry.get("is_clarification"):
-        parts.append(
-            f"<div class='explain'><strong>Why this works:</strong> "
-            f"{html.escape(entry['explanation'])}</div>"
-        )
-    parts.append("</div>")
-    return "".join(parts)
 
 
 # ------------------- UI -------------------
@@ -362,12 +327,29 @@ if st.button("Generate a reply", type="primary"):
         st.session_state.revising = False
         st.rerun()
 
-if st.session_state.get("run") and st.session_state.generation_count >= MAX_GENERATIONS_PER_SESSION:
-    st.warning(
-        f"You've reached the {MAX_GENERATIONS_PER_SESSION}-reply limit for this session. "
-        "Start a new session to continue."
-    )
-    st.session_state.run = False
+# Checks that run before every reply, to protect the API credits (see
+# usage_limits.py for the daily limits). st.context.ip_address is the
+# visitor's IP address, which is only used in scrambled form.
+visitor = visitor_id(st.context.ip_address)
+if st.session_state.get("run"):
+    limit_message = None
+    if st.session_state.generation_count >= MAX_GENERATIONS_PER_SESSION:
+        limit_message = (
+            f"You've reached the {MAX_GENERATIONS_PER_SESSION}-reply limit for this "
+            "session. Please come back later!"
+        )
+    elif st.session_state.clarifications_in_a_row >= MAX_CLARIFICATIONS_IN_A_ROW:
+        limit_message = (
+            "The last few inputs didn't look like something the assistant can help "
+            "with, so it has paused for this session. It's built for replying to "
+            "comments about animals and veganism."
+        )
+    else:
+        limit_message = check_limits(db, visitor)
+    if limit_message:
+        st.warning(limit_message)
+        st.session_state.run = False
+        st.session_state.revising = False
 
 if st.session_state.get("run"):
     st.session_state.generation_count += 1
@@ -481,6 +463,11 @@ if st.session_state.get("run"):
                 }
             )
 
+            # Add this request's cost to today's totals for the credit limits,
+            # and count it towards the "inputs it couldn't use" streak.
+            record_usage(db, visitor, sum(u["cost"] or 0 for u in usage_log))
+            st.session_state.clarifications_in_a_row += 1
+
             log_to_firestore(
                 db,
                 version=len(st.session_state.history),
@@ -544,6 +531,11 @@ if st.session_state.get("run"):
                 "draft": draft.strip(),
             }
         )
+
+        # Add this reply's cost to today's totals for the credit limits; a
+        # real reply also ends any streak of unusable inputs.
+        record_usage(db, visitor, sum(u["cost"] or 0 for u in usage_log))
+        st.session_state.clarifications_in_a_row = 0
 
         log_to_firestore(
             db,
@@ -646,8 +638,12 @@ if st.session_state.history:
         # the "if ... not in st.session_state" checks near the top of this
         # file and starts fresh. "seen_intro" is kept, so the instructions
         # popup doesn't reappear for someone who has already read it.
+        # Everything is wiped except these: the intro popup shouldn't
+        # reappear, and the reply counts must survive, or "New session"
+        # would be a free way around the per-session limits.
+        SURVIVES_NEW_SESSION = {"seen_intro", "generation_count", "clarifications_in_a_row"}
         for key in list(st.session_state.keys()):
-            if key != "seen_intro":
+            if key not in SURVIVES_NEW_SESSION:
                 del st.session_state[key]
         st.rerun()
 

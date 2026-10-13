@@ -113,9 +113,9 @@
   },
   {
     "title": "Affirm the Need Behind Leaving, Then Bridge to Support",
-    "source": "Internal (formalized from existing prompt guidance)",
-    "source_url": "",
-    "description": "When someone left veganism, the underlying need, like health concerns or inadequate nutrition support, was likely real even if going back to meat wasn't the ideal fix. Acknowledge that need and offer nutrition or community support resources rather than re-litigating the choice.",
+    "source": "Faunalytics - Study of Current and Former Vegetarians and Vegans (2014)",
+    "source_url": "https://faunalytics.org/a-summary-of-faunalytics-study-of-current-and-former-vegetarians-and-vegans/",
+    "description": "Most people who leave veganism do it for practical reasons - food they didn't enjoy, health worries, social pressure, or inconvenience - and most (84%) never had a vegan community around them. Treat the reason they left as a real problem that deserved support, not a moral failing, and don't re-argue their choice. Then bridge to what was missing: good nutrition guidance, easier or tastier food, or other people doing the same. More than a third of former vegans are open to trying again, so leave that door open rather than pushing them through it.",
     "tags": ["ex-vegan", "health concern"],
     "goals": ["empathy", "reduce defensiveness", "reconnect with values"]
   },
@@ -193,9 +193,9 @@
   },
   {
     "title": "Validate Real Barriers, Then Reframe Imperfect Effort as Building Access",
-    "source": "Internal (Joanna's own formulation)",
-    "source_url": "",
-    "description": "Acknowledge honestly that going vegan can be genuinely difficult at times, not because a plant-based diet is unhealthy (it's well-established that it can be healthy), but because food systems are built around animal products and accessible options are still limited in some places. Then reframe: even without being 100% plant-based, demand for vegan options helps shift that system over time, making plant-based living more accessible for everyone, including the person you're talking to, and ultimately helps more animals than insisting on purity would.",
+    "source": "Anderson & Milyavskaya (2022), via Faunalytics - Going Vegan or Vegetarian: Barriers and Strategies",
+    "source_url": "https://faunalytics.org/going-veg-barriers-and-strategies/",
+    "description": "Acknowledge honestly that going vegan can be hard, not because a plant-based diet is unhealthy, but because of cost, access, and food systems built around animal products - cost is the barrier new vegans report most. Offer one practical, low-cost step (cheap staples like beans, lentils, or tofu), since finding affordable options is what most reliably helps people stick with the change. Then reframe imperfect effort as real progress: people who feel little control over their food tend to feel they're failing even when they're succeeding. Every plant-based choice also adds to demand that makes vegan options cheaper and easier to find for everyone, which helps more animals than insisting on perfection.",
     "tags": ["overwhelmed", "cost concern", "access concern"],
     "goals": ["validate difficulty", "reduce reactance", "systemic framing", "sustainable effort"]
   },
