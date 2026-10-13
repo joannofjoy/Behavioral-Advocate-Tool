@@ -20,6 +20,7 @@ from config import (
     MAX_INPUT_CHARS,
     STRATEGY_RETRIEVAL,
     TESTING_MODE,
+    get_tester_ips,
 )
 from firebase_logger import init_firebase, log_to_firestore
 from llm import (
@@ -33,7 +34,7 @@ from prompt_builder import MODE_FAMILY, MODE_ONLINE, MODE_STREET, MODES, build_r
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
 from ui_html import reply_card_html
-from usage_limits import check_limits, record_usage, visitor_id
+from usage_limits import check_limits, client_ip, record_usage, visitor_id
 
 # Give this browser session a unique ID (used to group its log entries in
 # Firestore), but only the first time this code runs for this session -
@@ -328,9 +329,15 @@ if st.button("Generate a reply", type="primary"):
         st.rerun()
 
 # Checks that run before every reply, to protect the API credits (see
-# usage_limits.py for the daily limits). st.context.ip_address is the
-# visitor's IP address, which is only used in scrambled form.
-visitor = visitor_id(st.context.ip_address)
+# usage_limits.py for the daily limits). The visitor's IP address is only
+# ever stored in scrambled form (visitor_id).
+ip = client_ip(st.context.ip_address, st.context.headers)
+# The developer's own visits (local runs with TESTING_MODE, or the live site
+# from an address in TESTER_IPS) are logged as tests, so they can be left out
+# of any analysis of real visitors, and they skip the per-visitor limit.
+is_tester = TESTING_MODE or ip in get_tester_ips()
+visitor = visitor_id(ip)
+limit_visitor = None if is_tester else visitor
 if st.session_state.get("run"):
     limit_message = None
     if st.session_state.generation_count >= MAX_GENERATIONS_PER_SESSION:
@@ -345,7 +352,7 @@ if st.session_state.get("run"):
             "comments about animals and veganism."
         )
     else:
-        limit_message = check_limits(db, visitor)
+        limit_message = check_limits(db, limit_visitor)
     if limit_message:
         st.warning(limit_message)
         st.session_state.run = False
@@ -465,7 +472,7 @@ if st.session_state.get("run"):
 
             # Add this request's cost to today's totals for the credit limits,
             # and count it towards the "inputs it couldn't use" streak.
-            record_usage(db, visitor, sum(u["cost"] or 0 for u in usage_log))
+            record_usage(db, limit_visitor, sum(u["cost"] or 0 for u in usage_log))
             st.session_state.clarifications_in_a_row += 1
 
             log_to_firestore(
@@ -490,7 +497,8 @@ if st.session_state.get("run"):
                 use_case=mode,
                 worth_engaging=engagement.worth_engaging if engagement else None,
                 engagement_reason=engagement.reason if engagement else None,
-                is_test=TESTING_MODE,
+                is_test=is_tester,
+                visitor_id=visitor,
             )
             st.session_state.run = False
             st.session_state.revising = False
@@ -534,7 +542,7 @@ if st.session_state.get("run"):
 
         # Add this reply's cost to today's totals for the credit limits; a
         # real reply also ends any streak of unusable inputs.
-        record_usage(db, visitor, sum(u["cost"] or 0 for u in usage_log))
+        record_usage(db, limit_visitor, sum(u["cost"] or 0 for u in usage_log))
         st.session_state.clarifications_in_a_row = 0
 
         log_to_firestore(
@@ -561,7 +569,8 @@ if st.session_state.get("run"):
             engagement_reason=engagement.reason if engagement else None,
             quality_scores=quality_scores.model_dump(),
             what_changed=parsed.what_changed,
-            is_test=TESTING_MODE,
+            is_test=is_tester,
+            visitor_id=visitor,
         )
 
         st.session_state.run = False

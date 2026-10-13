@@ -17,10 +17,9 @@
 import datetime
 import hashlib
 import logging
-import os
 import secrets
 
-from config import DAILY_SPEND_LIMIT_USD, VISITOR_DAILY_REPLY_LIMIT
+from config import DAILY_SPEND_LIMIT_USD, VISITOR_DAILY_REPLY_LIMIT, get_setting
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 # environment or Streamlit secrets to keep visitor counts stable across app
 # restarts; otherwise a random one is made each time the app starts (counts
 # then reset on restart, which is harmless).
-_SALT = os.getenv("VISITOR_HASH_SALT") or secrets.token_hex(16)
+_SALT = get_setting("VISITOR_HASH_SALT") or secrets.token_hex(16)
 
 # The in-memory fallback, used only when Firestore isn't available.
 _memory = {"day": None, "spend": 0.0, "visitors": {}}
@@ -49,6 +48,21 @@ def today():
     """Today's date in UTC as text, e.g. "2026-10-13" - the daily limits
     reset when this changes."""
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+
+
+def client_ip(ip_address, headers):
+    """The visitor's real IP address, as best it can be told.
+
+    On a hosted app, visitors often reach it through a proxy server, so the
+    connection's own address (ip_address) can be the proxy's, shared by
+    everyone. Proxies record the original address in the X-Forwarded-For
+    header ("client, proxy1, proxy2, ..."), so the first entry there is used
+    when it exists. A visitor could fake that header to dodge the
+    per-visitor limit, but the app-wide daily spend cap still holds.
+    """
+    forwarded = (headers or {}).get("X-Forwarded-For", "")
+    first = forwarded.split(",")[0].strip()
+    return first or ip_address
 
 
 def visitor_id(ip_address):

@@ -47,3 +47,13 @@ def test_counts_reset_on_a_new_day(monkeypatch):
     usage_limits.record_usage(None, None, 0.02)
     monkeypatch.setattr(usage_limits, "today", lambda: "2099-01-01")
     assert usage_limits.check_limits(None, None) is None
+
+
+def test_client_ip_prefers_the_forwarded_address():
+    headers = {"X-Forwarded-For": "203.0.113.7, 10.0.0.1"}
+    assert usage_limits.client_ip("10.0.0.1", headers) == "203.0.113.7"
+
+
+def test_client_ip_falls_back_to_the_connection_address():
+    assert usage_limits.client_ip("203.0.113.7", {}) == "203.0.113.7"
+    assert usage_limits.client_ip(None, None) is None

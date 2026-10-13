@@ -81,6 +81,7 @@ def log_to_firestore(
     quality_scores=None,
     is_test=False,
     what_changed=None,
+    visitor_id=None,
 ):
     """Save one reply/session record to the "session_logs" collection.
 
@@ -153,6 +154,9 @@ def log_to_firestore(
         # The model's note on how this reply differs from the user's draft
         # or from the version it revised. Empty when there was neither.
         "what_changed": what_changed,
+        # A scrambled ID for the visitor's IP address (see usage_limits.py),
+        # never the address itself - lets analysis group sessions by visitor.
+        "visitor_id": visitor_id,
     }
     try:
         # uuid.uuid4() generates a random, practically-unique ID to use as

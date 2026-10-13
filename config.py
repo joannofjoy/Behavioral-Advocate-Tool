@@ -103,6 +103,32 @@ MAX_CLARIFICATIONS_IN_A_ROW = 5
 TESTING_MODE = os.getenv("TESTING_MODE", "false").lower() == "true"
 
 
+def get_setting(name, default=""):
+    """Read a top-level setting from the environment or Streamlit secrets.
+
+    Checks the environment first (e.g. a local .env), then Streamlit's
+    secrets (secrets.toml locally, the Secrets editor on Streamlit Cloud).
+    Both are checked because Streamlit only loads secrets when they're first
+    used, so a plain os.getenv() can miss a value that is in secrets.toml.
+    """
+    value = os.getenv(name)
+    if value:
+        return value
+    try:
+        return str(st.secrets[name])
+    except Exception:
+        return default
+
+
+def get_tester_ips():
+    """The developer's own IP addresses, from the TESTER_IPS setting
+    (comma-separated). Visits from these are logged as tests and skip the
+    per-visitor daily limit, so testing the live site doesn't pollute the
+    real-visitor data."""
+    # A set comprehension: split on commas, trim spaces, skip empty entries.
+    return {ip.strip() for ip in get_setting("TESTER_IPS").split(",") if ip.strip()}
+
+
 def get_llm_api_key():
     """Work out which OpenRouter API key to use.
 
