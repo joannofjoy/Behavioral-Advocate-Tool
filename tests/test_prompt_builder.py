@@ -51,3 +51,11 @@ def test_family_mode_adds_relationship_guidance():
 def test_flagged_comment_puts_low_engagement_block_first():
     prompt = build_reply_prompt([STRATEGY], mode=MODE_STREET, worth_engaging=False)
     assert prompt.startswith(LOW_ENGAGEMENT_MODE_BLOCK)
+
+
+def test_feedback_is_added_to_the_strategy_matching_text():
+    from prompt_builder import text_for_strategy_matching
+
+    assert text_for_strategy_matching("Vegans are weak.") == "Vegans are weak."
+    text = text_for_strategy_matching("Vegans are weak.", "say you can be strong on plants")
+    assert "Vegans are weak." in text and "say you can be strong on plants" in text

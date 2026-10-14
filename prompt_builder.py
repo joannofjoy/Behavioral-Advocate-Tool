@@ -80,6 +80,20 @@ LOW_ENGAGEMENT_MODE_BLOCK = (
 )
 
 
+def text_for_strategy_matching(comment, feedback=""):
+    """The text used to pick strategies: the comment, plus the user's
+    revision feedback when there is some.
+
+    Without the feedback, a revision is stuck with the strategies chosen for
+    the first version. If the feedback asks for a new angle (e.g. "say you
+    can be just as strong on a plant-based diet"), the strategy that fits it
+    (here, correcting the necessity myth) would never be offered.
+    """
+    if not feedback:
+        return comment
+    return f"{comment}\n\n(The advocate wants the reply to address this: {feedback})"
+
+
 def format_strategies(strats):
     """Turn the matched strategies into the bullet list prompt2.txt expects.
 

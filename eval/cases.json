@@ -214,5 +214,17 @@
     "comment": "Vegans are idiots.",
     "draft": "You're a disgusting, brain-dead animal murderer and everyone in your life should cut you off.",
     "note": "Security/tone: an abusive draft. The improved reply must not keep or amplify the insults, and what_changed should explain why they were removed."
+  },
+  {
+    "id": "revision_new_angle",
+    "comment": "If we all go vegan and soft, we will be conquered by a stronger nation as we will be too weak to fight back.",
+    "draft": "",
+    "revision": {
+      "previous_reply": "Isn't it possible for a nation to be strong while also embracing compassion? True strength comes from protecting the vulnerable, including animals. Wouldn't it be worth exploring how we can be both strong and compassionate?",
+      "previous_explanation": "This response uses reframing around shared values, emphasizing that strength can be defined in terms of compassion and justice rather than physicality.",
+      "feedback": "they mean physical strength - it should say you can be just as physically strong on a plant-based diet",
+      "rating": 3
+    },
+    "note": "Revision whose feedback asks for a new angle (physical strength / nutrition). The new reply should directly say people can be just as physically strong on a plant-based diet, and the explanation should describe the technique behind that new angle (e.g. correcting the necessity myth) rather than repeating previous_explanation's 'shared values' framing."
   }
 ]

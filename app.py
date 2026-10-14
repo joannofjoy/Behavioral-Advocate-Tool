@@ -30,7 +30,14 @@ from llm import (
     get_llm_client,
     score_reply_quality,
 )
-from prompt_builder import MODE_FAMILY, MODE_ONLINE, MODE_STREET, MODES, build_reply_prompt
+from prompt_builder import (
+    MODE_FAMILY,
+    MODE_ONLINE,
+    MODE_STREET,
+    MODES,
+    build_reply_prompt,
+    text_for_strategy_matching,
+)
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
 from ui_html import reply_card_html
@@ -369,7 +376,16 @@ if st.session_state.get("run"):
         # totals can be logged alongside the rest of the record. See
         # llm.py's _record_usage for what each entry looks like.
         usage_log = []
-        tags = extract_tags(client, comment.strip(), draft.strip(), usage_log=usage_log)
+
+        # Feedback only counts when the user clicked "Revise this reply" - a
+        # plain "Generate a reply" always starts fresh. It's read first
+        # because it also helps pick the strategies below.
+        revising = st.session_state.get("revising", False)
+        feedback_txt = (st.session_state.get("feedback") or "").strip() if revising else ""
+        rating_val = st.session_state.get("rating") if revising else None
+        matching_text = text_for_strategy_matching(comment.strip(), feedback_txt)
+
+        tags = extract_tags(client, matching_text, draft.strip(), usage_log=usage_log)
         # Only worth assessing when there's an actual comment to read - a
         # draft-only input has no other person's comment to judge for bad
         # faith, explicit refusal, or entrenchment.
@@ -382,7 +398,7 @@ if st.session_state.get("run"):
             client,
             strategies,
             tags,
-            comment,
+            matching_text,
             draft,
             STRATEGY_RETRIEVAL,
             strategy_vectors=strategy_vectors,
@@ -393,12 +409,6 @@ if st.session_state.get("run"):
             mode=mode,
             worth_engaging=engagement.worth_engaging if engagement else True,
         )
-
-        # Feedback only counts when the user clicked "Regenerate with
-        # feedback" - a plain "Generate a reply" always starts fresh.
-        revising = st.session_state.get("revising", False)
-        feedback_txt = (st.session_state.get("feedback") or "").strip() if revising else ""
-        rating_val = st.session_state.get("rating") if revising else None
 
         # The reply being revised: the most recent real reply (skipping any
         # clarifying questions). next(..., None) returns the first match from
@@ -415,9 +425,11 @@ if st.session_state.get("run"):
         if revising and previous:
             prev_version, prev_entry = previous
             # Sent to the model alongside the comment and draft, so it can
-            # actually see the reply it's being asked to improve.
+            # actually see the reply it's being asked to improve - and its
+            # explanation, so it doesn't just repeat the same one.
             revision = {
                 "previous_reply": prev_entry["reply"],
+                "previous_explanation": prev_entry["explanation"],
                 "feedback": feedback_txt,
                 "rating": rating_val,
             }

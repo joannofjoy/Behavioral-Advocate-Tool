@@ -24,7 +24,7 @@ from pathlib import Path
 
 from config import MODEL_NAME, STRATEGY_RETRIEVAL
 from llm import assess_engagement, extract_tags, generate_reply, get_llm_client
-from prompt_builder import MODE_ONLINE, build_reply_prompt
+from prompt_builder import MODE_ONLINE, build_reply_prompt, text_for_strategy_matching
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
 
@@ -80,7 +80,9 @@ def run_case(client, model, case, strategies, retrieval, strategy_vectors, judge
     mode = case.get("mode", MODE_ONLINE)
     revision = case.get("revision")
 
-    tags = extract_tags(client, comment, draft, model=model, usage_log=usage_log)
+    # Same as the app: revision feedback also helps pick the strategies.
+    matching_text = text_for_strategy_matching(comment, (revision or {}).get("feedback", ""))
+    tags = extract_tags(client, matching_text, draft, model=model, usage_log=usage_log)
     engagement = (
         assess_engagement(client, comment, model=model, usage_log=usage_log)
         if comment.strip()
@@ -90,7 +92,7 @@ def run_case(client, model, case, strategies, retrieval, strategy_vectors, judge
         client,
         strategies,
         tags,
-        comment,
+        matching_text,
         draft,
         retrieval,
         strategy_vectors=strategy_vectors,
