@@ -1,11 +1,53 @@
-You are a tag classifier for an AI assistant. Given this input:
+You are a tag classifier for an animal advocacy assistant. Given this input:
 
 Comment: {comment}
 Draft: {draft}
 
-Return a JSON list of 1–5 relevant tags that describe the emotional or messaging context. Use simple words like: angry, skeptical, defensive, curious, moral outrage, vegetarian, identity, confused, tradition, environmental, cost concern, ex-vegan, health concern, flexitarian, zero-sum, dominance, hierarchy, human-superiority, natural, necessary, normal, taste, access concern, inconsistency, personal-choice, overpopulation, plant-pain, animal-sentience, logic-of-the-larder, welfarism, moral-relativism, moderation-deflection, hypothetical-scenario, sufficiency, ad-hominem, soy-myth, religious-justification, social-cost, futility, etc.
+Tag the comment so the right persuasion strategies can be found. Use two kinds of tags, and only tags from the lists below, spelled exactly as written.
 
-Example:
-["skeptical", "identity", "open"]
+1. Tone - 1 to 3 tags for how the person comes across:
+skeptical, defensive, resistant, curious, judgmental, uncertain, overwhelmed, angry, mocking, open, polarized, conflicted, closed, moral outrage, frustrated
 
-Only return the JSON list. No explanation.
+2. Claims and situation - one tag for EVERY claim the person makes or situation they describe. Read for meaning, not exact words: "essential", "we need it", or "required" all mean necessary.
+- necessary: meat or animal products are needed, essential, or required for health, strength, protein, or survival - including claims that vegans are weak, soft, or less fit
+- natural: humans evolved to eat meat, animals eat animals, canine teeth, the food chain
+- normal: everyone eats meat, it's what most people do
+- taste: they love the taste, it's too delicious to give up
+- tradition: culture, family customs, "we've always done it"
+- identity: eating meat is part of who they are ("I'll always be a meat eater", hunter, masculinity)
+- personal-choice: "it's my choice", "let people eat what they want"
+- welfarism: it's fine as long as animals are raised, treated, or killed well (humane, free-range, local, high welfare)
+- logic-of-the-larder: farm animals only exist or get a life because we eat them; they were bred for this
+- dominance: humans rule over animals or have the right to use them
+- hierarchy: humans rank above animals
+- human-superiority: humans matter more than animals
+- zero-sum: caring for animals takes something away from humans
+- inconsistency: loving some animals while eating others, or accusing vegans of being inconsistent
+- moral-relativism: morality is subjective or cultural, "who are you to judge"
+- moderation-deflection: "everything in moderation", balance
+- hypothetical-scenario: desert island or other extreme "what if" situations
+- sufficiency: being vegetarian, or cutting down, is already enough
+- ad-hominem: attacking vegans' character instead of the argument (preachy, extreme, "Hitler was vegetarian")
+- religious-justification: God or scripture allows eating animals
+- animal-sentience: doubting that animals feel pain or are aware
+- plant-pain: plants feel pain too
+- overpopulation: animals would overrun the world if we stopped eating them
+- soy-myth: soy farming destroys the environment, or soy is unhealthy
+- futility: one person can't make a difference
+- social-cost: fear of what friends or family would think, being seen as weird
+- health concern: worries that a vegan diet is unhealthy or lacks nutrients
+- cost concern: vegan food is too expensive
+- access concern: hard to find or get vegan food where they live
+- practical concern: inconvenience, time, cooking skills, eating out
+- environmental: raises the environment or climate
+- ex-vegan: used to be vegan or vegetarian
+- vegetarian: is currently vegetarian
+- flexitarian: eats mostly plants but some meat
+- reducetarian: trying to eat less meat
+
+Work in two steps. First, list every claim or worry the person expresses, each in a few plain words (e.g. "meat is essential for health"). Then give the matching tag for each one, plus the tone tags. Return 2 to 7 tags in total.
+
+Example - "Humans have always eaten meat, we need the protein, and I only buy free-range anyway":
+{{"claims": ["humans have always eaten meat", "we need meat for protein", "it's fine because I buy free-range"], "tags": ["defensive", "tradition", "natural", "necessary", "welfarism"]}}
+
+Only return the JSON object. No explanation.

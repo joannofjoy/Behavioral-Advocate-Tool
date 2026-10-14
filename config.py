@@ -49,7 +49,8 @@ QUALITY_JUDGE_MODEL = "openai/gpt-4o"
 # very predictable and repetitive, 1 is much more varied. "max_tokens" caps
 # how long the model's reply is allowed to be.
 TAG_EXTRACTION_TEMPERATURE = 0.3
-TAG_EXTRACTION_MAX_TOKENS = 100
+# Room for the written-out claims as well as the tags (see prompt1.txt).
+TAG_EXTRACTION_MAX_TOKENS = 300
 
 REPLY_TEMPERATURE = 0.7
 # Raised from 400 now that the explanation field is meant to be genuinely

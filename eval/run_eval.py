@@ -221,6 +221,41 @@ def print_case_drops(results, previous):
     print("\n".join(drops) if drops else "  none")
 
 
+def tag_recall(results, cases):
+    """What share of the expected tags the tagging step actually produced.
+
+    Some cases list "expected_tags" - claims the tagger must catch for the
+    right strategies to be offered (e.g. "essential to our health" must be
+    tagged "necessary"). Unlike the judge's scores, this is an exact check.
+    Returns (found, total, misses), where misses lists "case: tag" pairs.
+    """
+    expected = {c["id"]: c["expected_tags"] for c in cases if c.get("expected_tags")}
+    found, total, misses = 0, 0, []
+    for r in results:
+        if "error" in r or r["case_id"] not in expected:
+            continue
+        for tag in expected[r["case_id"]]:
+            total += 1
+            if tag in r.get("tags", []):
+                found += 1
+            else:
+                misses.append(f"{r['case_id']}: {tag}")
+    return found, total, misses
+
+
+def print_tag_recall(results, cases, previous):
+    found, total, misses = tag_recall(results, cases)
+    if not total:
+        return
+    line = f"\n=== Tag recall: {found}/{total} expected tags found ({found / total:.0%})"
+    if previous:
+        old_found, old_total, _ = tag_recall(previous, cases)
+        if old_total:
+            line += f", previous run {old_found}/{old_total} ({old_found / old_total:.0%})"
+    print(line + " ===")
+    print("  missed: " + (", ".join(misses) if misses else "none"))
+
+
 def load_previous_run(judge_model):
     """Load the most recent earlier run scored by the same judge, or None.
 
@@ -307,6 +342,7 @@ def main():
     # 'or 0' covers any call where the API didn't report a cost.
     if previous:
         print_case_drops(results, previous)
+    print_tag_recall(results, cases, previous)
     # A judge that fails (e.g. a wrong model name, or answers cut off for
     # length) leaves rows with no scores, which would otherwise look like a
     # quiet but valid run.

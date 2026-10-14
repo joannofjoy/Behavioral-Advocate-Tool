@@ -203,11 +203,15 @@ def load_prompt(fn):
 
 
 def extract_tags(client, comment, draft, model=MODEL_NAME, usage_log=None):
-    """Ask GPT to label the comment/draft with a handful of tone tags.
+    """Ask GPT to label the comment/draft with tone tags and claim tags.
 
-    These tags (e.g. "defensive", "curious") are later used to pick relevant
-    strategies from strategies.json. Returns an empty list if the call or
-    the JSON parsing fails, so the rest of the app can carry on without tags.
+    These tags (e.g. "defensive", "necessary") are later used to pick
+    relevant strategies from strategies.json. The model first writes out the
+    person's claims in plain words and then tags each one (see prompt1.txt);
+    spelling the claims out first is what stops it skipping one, e.g. reading
+    "it's essential to our diets" without tagging it "necessary". Only the
+    tags are returned. Returns an empty list if the call or the JSON parsing
+    fails, so the rest of the app can carry on without tags.
 
     "model" defaults to the app's configured MODEL_NAME; the eval harness in
     eval/run_eval.py passes a different model id here to compare several
@@ -226,7 +230,14 @@ def extract_tags(client, comment, draft, model=MODEL_NAME, usage_log=None):
             max_tokens=TAG_EXTRACTION_MAX_TOKENS,
         )
         _record_usage(r, usage_log)
-        return json.loads(r.choices[0].message.content.strip())
+        content = r.choices[0].message.content.strip()
+        # The model should answer {"claims": [...], "tags": [...]}, but a
+        # plain ["tag", ...] list is accepted too, in case it skips the claims.
+        if content.startswith("["):
+            tags = json.loads(content)
+        else:
+            tags = parse_json_object(content).get("tags", [])
+        return [t for t in tags if isinstance(t, str)]
     except openai.RateLimitError:
         logger.exception("Tag extraction rate-limited")
         st.warning(_RATE_LIMIT_MESSAGE)

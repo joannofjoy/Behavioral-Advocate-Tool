@@ -9,13 +9,19 @@
     "id": "hostile_confrontational",
     "comment": "Vegans are so preachy and annoying, just let people eat what they want.",
     "draft": "",
-    "note": "Hostile tone - checks the reply stays non-confrontational rather than escalating."
+    "note": "Hostile tone - checks the reply stays non-confrontational rather than escalating.",
+    "expected_tags": [
+      "personal-choice"
+    ]
   },
   {
     "id": "health_misinformation",
     "comment": "I heard vegan diets cause nutrient deficiencies and are actually unhealthy long term.",
     "draft": "",
-    "note": "Misinformation - checks facts are corrected respectfully, not dismissively."
+    "note": "Misinformation - checks facts are corrected respectfully, not dismissively.",
+    "expected_tags": [
+      "health concern"
+    ]
   },
   {
     "id": "ambiguous_vague",
@@ -45,7 +51,10 @@
     "id": "ex_vegan",
     "comment": "I used to be vegan but felt weak and tired all the time, so I went back to eating meat. It was the right call for my health.",
     "draft": "",
-    "note": "Ex-vegan case - prompt2.txt says to reference nutrition/support without validating meat-eating."
+    "note": "Ex-vegan case - prompt2.txt says to reference nutrition/support without validating meat-eating.",
+    "expected_tags": [
+      "ex-vegan"
+    ]
   },
   {
     "id": "draft_reply_only",
@@ -63,19 +72,28 @@
     "id": "environmental_skeptic",
     "comment": "Cattle have always existed, meat production isn't actually that bad for the environment, that's exaggerated.",
     "draft": "",
-    "note": "Skeptic framing - prompt2.txt calls for environmental framing with skeptics specifically."
+    "note": "Skeptic framing - prompt2.txt calls for environmental framing with skeptics specifically.",
+    "expected_tags": [
+      "environmental"
+    ]
   },
   {
     "id": "identity_tradition",
     "comment": "Eating meat is part of my culture and family traditions, I'm not going to give that up.",
     "draft": "",
-    "note": "Identity/tradition framing - checks the reply doesn't demand an all-or-nothing change."
+    "note": "Identity/tradition framing - checks the reply doesn't demand an all-or-nothing change.",
+    "expected_tags": [
+      "tradition"
+    ]
   },
   {
     "id": "economic_concern",
     "comment": "Vegan food is so expensive, I can't afford to eat that way even if I wanted to.",
     "draft": "",
-    "note": "Practical objection - checks the reply offers low-pressure, realistic suggestions."
+    "note": "Practical objection - checks the reply offers low-pressure, realistic suggestions.",
+    "expected_tags": [
+      "cost concern"
+    ]
   },
   {
     "id": "off_topic",
@@ -87,7 +105,11 @@
     "id": "long_multi_point_rant",
     "comment": "Look, I get that factory farming has issues, but humans are omnivores, our teeth are made for meat, plants feel pain too if you actually look into it, and honestly the whole vegan movement feels more like a trend than an ethical stance. Also I tried it for a month once and just felt awful the whole time.",
     "draft": "",
-    "note": "Longer, multi-point input - checks the reply picks a focus rather than trying to rebut every point."
+    "note": "Longer, multi-point input - checks the reply picks a focus rather than trying to rebut every point.",
+    "expected_tags": [
+      "natural",
+      "plant-pain"
+    ]
   },
   {
     "id": "mockery_with_substance",
@@ -99,19 +121,29 @@
     "id": "ex_vegan_accusatory",
     "comment": "I used to be vegan but now i went on keto and 4 of my metabolic diseases got cured! i was so brainwashed by vegans, but now i see clearly.",
     "draft": "",
-    "note": "Real logged test input. A more accusatory, specific ex-vegan case than the existing one - cites a specific alternative diet and dramatic health claims, and the word \"brainwashed\" implies manipulation rather than just a difficult experience."
+    "note": "Real logged test input. A more accusatory, specific ex-vegan case than the existing one - cites a specific alternative diet and dramatic health claims, and the word \"brainwashed\" implies manipulation rather than just a difficult experience.",
+    "expected_tags": [
+      "ex-vegan"
+    ]
   },
   {
     "id": "dominance_logic_of_larder",
     "comment": "thats just nature, we rule over animals so we get to eat them, but thanks to that they can even be alive",
     "draft": "",
-    "note": "Real logged test input. Combines naturalistic framing, dominance/hierarchy, and the logic-of-the-larder argument in one comment - tests whether multiple matched strategies produce a coherent reply rather than a disjointed one."
+    "note": "Real logged test input. Combines naturalistic framing, dominance/hierarchy, and the logic-of-the-larder argument in one comment - tests whether multiple matched strategies produce a coherent reply rather than a disjointed one.",
+    "expected_tags": [
+      "dominance",
+      "logic-of-the-larder"
+    ]
   },
   {
     "id": "protein_completeness_myth",
     "comment": "only animal products have wholesome protein, plants dont have full protein profile so you cant meet your protein demands without meat",
     "draft": "",
-    "note": "Real logged test input. A more specific/technical necessity claim (protein completeness) than the existing generic necessary case."
+    "note": "Real logged test input. A more specific/technical necessity claim (protein completeness) than the existing generic necessary case.",
+    "expected_tags": [
+      "necessary"
+    ]
   },
   {
     "id": "followup_in_thread",
@@ -148,14 +180,20 @@
     "mode": "Street outreach practice",
     "comment": "But humans have always eaten meat. It's natural.",
     "draft": "",
-    "note": "Street outreach mode with a common objection. The reply should work said out loud (short, spoken, ends with an open question) and the explanation should end with a 'Delivery tip:'."
+    "note": "Street outreach mode with a common objection. The reply should work said out loud (short, spoken, ends with an open question) and the explanation should end with a 'Delivery tip:'.",
+    "expected_tags": [
+      "natural"
+    ]
   },
   {
     "id": "family_worried_parent",
     "mode": "Family & friends",
     "comment": "My mum keeps saying I'll get ill if I stop eating meat, and she still cooks meat for me every Sunday even though I've told her I'm vegan now.",
     "draft": "",
-    "note": "Family mode with a worried parent. The reply should protect the relationship and acknowledge her care, not win an argument or lecture her about nutrition."
+    "note": "Family mode with a worried parent. The reply should protect the relationship and acknowledge her care, not win an argument or lecture her about nutrition.",
+    "expected_tags": [
+      "health concern"
+    ]
   },
   {
     "id": "revision_with_feedback",
@@ -225,6 +263,19 @@
       "feedback": "they mean physical strength - it should say you can be just as physically strong on a plant-based diet",
       "rating": 3
     },
-    "note": "Revision whose feedback asks for a new angle (physical strength / nutrition). The new reply should directly say people can be just as physically strong on a plant-based diet, and the explanation should describe the technique behind that new angle (e.g. correcting the necessity myth) rather than repeating previous_explanation's 'shared values' framing."
+    "note": "Revision whose feedback asks for a new angle (physical strength / nutrition). The new reply should directly say people can be just as physically strong on a plant-based diet, and the explanation should describe the technique behind that new angle (e.g. correcting the necessity myth) rather than repeating previous_explanation's 'shared values' framing.",
+    "expected_tags": [
+      "necessary"
+    ]
+  },
+  {
+    "id": "essential_but_welfare",
+    "comment": "I will always be a meat eater, It's essential to our diets, health and lifestyle. BUT, I will always value how it is reared, cared for, prepared and in what environment. - it's a Linkedin comment, under a post about unborn calves being used for luxury leather. He says he doesn't eat children because he has standards.",
+    "draft": "",
+    "expected_tags": [
+      "necessary",
+      "welfarism"
+    ],
+    "note": "Real-world LinkedIn comment combining a necessity claim ('essential to our diets, health') with welfarism ('I value how it is reared'). The tags must catch both, and the reply should gently correct the necessity claim rather than only talking about values."
   }
 ]
