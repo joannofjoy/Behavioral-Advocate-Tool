@@ -12,3 +12,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 eval/results/
+# Local copies of the session logs (export_logs.py) - they contain what
+# visitors typed, so they must never be uploaded.
+exports/
