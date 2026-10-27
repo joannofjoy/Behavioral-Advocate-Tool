@@ -84,6 +84,7 @@ def log_to_firestore(
     visitor_id=None,
     delivery_tip=None,
     false_claims=None,
+    char_limit=None,
 ):
     """Save one reply/session record to the "session_logs" collection.
 
@@ -164,6 +165,8 @@ def log_to_firestore(
         # Factual errors the model spotted in the comment before replying
         # (see prompt2.txt) - handy for checking what it chose to correct.
         "false_claims": false_claims,
+        # The maximum reply length the user chose, in characters, or None.
+        "char_limit": char_limit,
     }
     try:
         # uuid.uuid4() generates a random, practically-unique ID to use as

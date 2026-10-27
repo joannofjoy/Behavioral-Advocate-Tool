@@ -34,7 +34,7 @@ from config import (
     get_llm_api_key,
 )
 from jsonutils import parse_json_object
-from text_cleanup import remove_em_dashes
+from text_cleanup import remove_em_dashes, trim_to_char_limit
 
 # A "logger" writes messages to the console/server logs, separately from
 # whatever the user sees in the Streamlit UI. __name__ is a built-in
@@ -437,3 +437,33 @@ def rank_strategies(client, comment, draft, candidates, count, model=MODEL_NAME,
     if not picked:
         raise ValueError("Ranking returned no valid candidates")
     return picked[:count]
+
+
+def fit_char_limit(client, message, limit, model=MODEL_NAME, usage_log=None):
+    """Make sure a reply fits the user's character limit (spaces included).
+
+    Models are poor at counting characters, so the limit in the main prompt
+    isn't always kept. If the reply is too long, the model is asked once to
+    shorten it (prompt7.txt), which keeps the wording natural; if it's still
+    too long, or that call fails, it's cut at the last whole sentence that
+    fits. Returns the reply unchanged when there's no limit or it fits.
+    """
+    if not limit or len(message) <= limit:
+        return message
+    try:
+        prompt = load_prompt("prompt7.txt").format(limit=limit, message=message)
+        r = _create_completion(
+            client,
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=REPLY_MAX_TOKENS,
+        )
+        _record_usage(r, usage_log)
+        shorter = remove_em_dashes((r.choices[0].message.content or "").strip().strip('"'))
+        if shorter and len(shorter) <= limit:
+            return shorter
+        message = shorter or message
+    except Exception:
+        logger.exception("Shortening to the character limit failed")
+    return trim_to_char_limit(message, limit)

@@ -60,3 +60,10 @@ def test_feedback_is_added_to_the_strategy_matching_text():
     assert text_for_strategy_matching("Vegans are weak.") == "Vegans are weak."
     text = text_for_strategy_matching("Vegans are weak.", "say you can be strong on plants")
     assert "Vegans are weak." in text and "say you can be strong on plants" in text
+
+
+def test_character_limit_is_added_at_the_very_end():
+    prompt = build_reply_prompt([STRATEGY], mode=MODE_STREET, char_limit=280)
+    assert prompt.rstrip().endswith("keep only the single most important point.")
+    assert "280 characters or fewer" in prompt
+    assert "characters or fewer, counting" not in build_reply_prompt([STRATEGY])

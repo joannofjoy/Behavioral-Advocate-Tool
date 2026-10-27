@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import MODEL_NAME, STRATEGY_RETRIEVAL
-from llm import assess_engagement, extract_tags, generate_reply, get_llm_client
+from llm import assess_engagement, extract_tags, fit_char_limit, generate_reply, get_llm_client
 from prompt_builder import MODE_ONLINE, build_reply_prompt, text_for_strategy_matching
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
@@ -103,10 +103,20 @@ def run_case(client, model, case, strategies, retrieval, strategy_vectors, judge
         strats,
         mode=mode,
         worth_engaging=engagement.worth_engaging if engagement else True,
+        char_limit=case.get("char_limit"),
     )
     reply = generate_reply(
         client, prompt, comment, draft, model=model, revision=revision, usage_log=usage_log
     )
+    # Same as the app: enforce the character limit, if the case sets one. The
+    # judge then sees the shortened reply, which is what the user would get.
+    if case.get("char_limit") and reply.message and not reply.needs_clarification:
+        shortened = fit_char_limit(
+            client, reply.message, case["char_limit"], model=model, usage_log=usage_log
+        )
+        if shortened != reply.message:
+            reply.message = shortened
+            reply.raw_text = json.dumps(reply.model_dump(exclude={"raw_text"}))
 
     # Skip the judge call entirely when the model returned nothing at all -
     # there's nothing meaningful to score, and it saves a judge-model call.
@@ -296,6 +306,22 @@ def print_engagement_accuracy(results, cases, previous):
     print("  wrong: " + (", ".join(misses) if misses else "none"))
 
 
+def print_char_limits(results, cases):
+    """Check, exactly, that every reply with a character limit stayed within it."""
+    limits = {c["id"]: c["char_limit"] for c in cases if c.get("char_limit")}
+    rows = [r for r in results if "error" not in r and r["case_id"] in limits]
+    if not rows:
+        return
+    over = [
+        f"{r['case_id']} ({len(r['reply']['message'] or '')}/{limits[r['case_id']]} characters)"
+        for r in rows
+        if len(r["reply"]["message"] or "") > limits[r["case_id"]]
+    ]
+    within = len(rows) - len(over)
+    print(f"\n=== Character limits: {within}/{len(rows)} replies within the limit ===")
+    print("  over: " + (", ".join(over) if over else "none"))
+
+
 def load_previous_run(judge_model):
     """Load the most recent earlier run scored by the same judge, or None.
 
@@ -384,6 +410,7 @@ def main():
         print_case_drops(results, previous)
     print_tag_recall(results, cases, previous)
     print_engagement_accuracy(results, cases, previous)
+    print_char_limits(results, cases)
     # A judge that fails (e.g. a wrong model name, or answers cut off for
     # length) leaves rows with no scores, which would otherwise look like a
     # quiet but valid run.

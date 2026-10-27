@@ -27,6 +27,7 @@ from firebase_logger import init_firebase, log_to_firestore
 from llm import (
     assess_engagement,
     extract_tags,
+    fit_char_limit,
     generate_reply,
     get_llm_client,
     score_reply_quality,
@@ -326,6 +327,21 @@ with st.expander("Optional: Your draft reply"):
         height=80,
     )
 
+# An optional maximum length for the reply, in characters - the unit
+# platforms use for their comment limits. value=None leaves the box empty,
+# meaning no limit; Streamlit then returns None instead of a number.
+char_limit = st.number_input(
+    "Character limit (optional)",
+    min_value=50,
+    max_value=5000,
+    value=None,
+    step=10,
+    placeholder="No limit",
+    key="char_limit_input",
+    help="The reply will fit within this many characters, spaces included. "
+    "For example: X 280, Bluesky 300, TikTok comments 150.",
+)
+
 if st.button("Generate a reply", type="primary"):
     if not comment.strip() and not draft.strip():
         st.warning("Enter context or draft.")
@@ -416,6 +432,7 @@ if st.session_state.get("run"):
             strats,
             mode=mode,
             worth_engaging=engagement.worth_engaging if engagement else True,
+            char_limit=char_limit,
         )
 
         # The reply being revised: the most recent real reply (skipping any
@@ -457,6 +474,10 @@ if st.session_state.get("run"):
         parsed = generate_reply(
             client, prompt, comment, draft, usage_log=usage_log, revision=revision
         )
+        # Enforce the user's character limit, if they set one (see
+        # fit_char_limit for how). Clarifying questions are left as they are.
+        if parsed.message and not parsed.needs_clarification:
+            parsed.message = fit_char_limit(client, parsed.message, char_limit, usage_log=usage_log)
 
         user_in = json.dumps({"comment": comment, "draft_reply": draft})
         itype = parsed.input_type
@@ -594,6 +615,7 @@ if st.session_state.get("run"):
             what_changed=parsed.what_changed,
             delivery_tip=parsed.delivery_tip,
             false_claims=parsed.false_claims,
+            char_limit=char_limit,
             is_test=is_tester,
             visitor_id=visitor,
         )

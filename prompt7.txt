@@ -1,0 +1,6 @@
+Shorten this reply to {limit} characters or fewer, counting spaces and punctuation. It has to fit a platform's comment limit, so this is a hard maximum. Keep its tone, its main point, and any question it ends with, and keep it sounding like a person wrote it. If something has to go, drop the least important point, not the warmth.
+
+Reply:
+{message}
+
+Return only the shortened reply, with no quotation marks and nothing else.

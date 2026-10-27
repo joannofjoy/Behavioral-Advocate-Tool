@@ -112,19 +112,31 @@ def format_strategies(strats):
     return "\n".join(lines) or "No strategies matched."
 
 
-def build_reply_prompt(strats, mode=MODE_ONLINE, worth_engaging=True):
+def build_reply_prompt(strats, mode=MODE_ONLINE, worth_engaging=True, char_limit=None):
     """Assemble the full reply-generation prompt.
 
-    "strats" are the matched strategies, "mode" is one of MODES, and
-    "worth_engaging" is False when assess_engagement() flagged the comment.
+    "strats" are the matched strategies, "mode" is one of MODES,
+    "worth_engaging" is False when assess_engagement() flagged the comment,
+    and "char_limit" is the user's optional maximum length for the reply,
+    in characters.
     The order matters: flag and mode guidance go first, then the main
-    prompt, then any mode-specific rule for the explanation field at the end.
+    prompt, then the rules that must win over it (the mode's extra field and
+    the length limit) at the very end, where the model pays most attention.
     """
     base_prompt = load_prompt("prompt2.txt").format(formatted_strategies=format_strategies(strats))
     low_engagement_block = "" if worth_engaging else LOW_ENGAGEMENT_MODE_BLOCK
+    limit_block = ""
+    if char_limit:
+        limit_block = (
+            f'\n\nThe user set a length limit: the "message" field must be {char_limit} '
+            "characters or fewer, counting spaces and punctuation, so it fits the "
+            "platform's comment box. This overrides the usual length guidance. If that's "
+            "too short to cover everything, keep only the single most important point."
+        )
     return (
         low_engagement_block
         + MODE_GUIDANCE.get(mode, "")
         + base_prompt
         + MODE_EXPLANATION_ADDON.get(mode, "")
+        + limit_block
     )

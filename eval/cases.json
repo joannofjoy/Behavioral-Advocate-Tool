@@ -300,5 +300,19 @@
     "draft": "",
     "expected_worth_engaging": false,
     "note": "An explicit refusal to discuss. It should be flagged as not worth a full persuasive reply, and the reply should be short, calm, and not try to persuade."
+  },
+  {
+    "id": "char_limit_x_post",
+    "comment": "Look, I get that factory farming has issues, but humans are omnivores, our teeth are made for meat, plants feel pain too if you actually look into it, and honestly the whole vegan movement feels more like a trend than an ethical stance. Also I tried it for a month once and just felt awful the whole time.",
+    "draft": "",
+    "note": "The long multi-point rant with X's 280-character limit. The reply must fit within 280 characters (spaces included) and still make one clear, warm point rather than a cramped list.",
+    "char_limit": 280
+  },
+  {
+    "id": "char_limit_tiktok",
+    "comment": "I will always be a meat eater, it's essential to our diets and health. But I value how it's reared and cared for.",
+    "draft": "",
+    "note": "TikTok's tight 150-character comment limit. The reply must fit and still read as a complete, natural sentence.",
+    "char_limit": 150
   }
 ]
