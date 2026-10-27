@@ -1,0 +1,8 @@
+This reply starts with a generic phrase that makes it sound AI-written. Rewrite only its first sentence so it opens with something specific instead: the other person's own words, their concrete situation, or straight into the point. Never start with "It's" plus a judgement (such as "It's understandable", "It's great", "It's interesting", "It's a common..."), "It sounds like", "You're expressing", "You seem", "I understand", "I hear you", "Many people believe", or "Actually". Don't swap one formula for another: it should sound like something a person would actually type. Keep the meaning of that sentence and leave the rest of the reply exactly as it is.
+
+What the other person said: {comment}
+
+Reply:
+{message}
+
+Return only the full reply with the new first sentence, with no quotation marks and nothing else.

@@ -35,3 +35,20 @@ def test_trim_cuts_a_too_long_first_sentence_at_a_word():
     result = trim_to_char_limit("Plenty of people stay strong without meat", 20)
     assert result == "Plenty of people..."
     assert len(result) <= 20
+
+
+def test_stock_openers_are_recognised():
+    from text_cleanup import has_stock_opener
+
+    assert has_stock_opener("It's totally understandable to feel that way.")
+    assert has_stock_opener("I understand your concern, but...")
+    assert has_stock_opener("It's a common belief that meat is essential.")
+    assert not has_stock_opener("Feeling wiped out on a new diet is rough.")
+    assert not has_stock_opener("Plenty of people stay strong without meat.")
+
+
+def test_stock_openers_with_curly_apostrophes_and_therapist_phrasing():
+    from text_cleanup import has_stock_opener
+
+    assert has_stock_opener("It\u2019s a great question! Vegans have...")
+    assert has_stock_opener("You're expressing frustration with how...")

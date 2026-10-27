@@ -23,10 +23,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import MODEL_NAME, STRATEGY_RETRIEVAL
-from llm import assess_engagement, extract_tags, fit_char_limit, generate_reply, get_llm_client
+from llm import assess_engagement, extract_tags, generate_reply, get_llm_client, polish_reply
 from prompt_builder import MODE_ONLINE, build_reply_prompt, text_for_strategy_matching
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
+from text_cleanup import has_stock_opener
 
 from .judge import ROUTINE_JUDGE_MODEL, STRONG_JUDGE_MODEL, JudgeScores, judge_output
 
@@ -108,15 +109,15 @@ def run_case(client, model, case, strategies, retrieval, strategy_vectors, judge
     reply = generate_reply(
         client, prompt, comment, draft, model=model, revision=revision, usage_log=usage_log
     )
-    # Same as the app: enforce the character limit, if the case sets one. The
-    # judge then sees the shortened reply, which is what the user would get.
-    if case.get("char_limit") and reply.message and not reply.needs_clarification:
-        shortened = fit_char_limit(
-            client, reply.message, case["char_limit"], model=model, usage_log=usage_log
-        )
-        if shortened != reply.message:
-            reply.message = shortened
-            reply.raw_text = json.dumps(reply.model_dump(exclude={"raw_text"}))
+    # Same final touches as the app (generic-opener fix, character limit).
+    # If they changed the reply, the judge sees the changed version, since
+    # that's what the user would get.
+    before = reply.message
+    reply = polish_reply(
+        client, reply, comment, char_limit=case.get("char_limit"), model=model, usage_log=usage_log
+    )
+    if reply.message != before:
+        reply.raw_text = json.dumps(reply.model_dump(exclude={"raw_text"}))
 
     # Skip the judge call entirely when the model returned nothing at all -
     # there's nothing meaningful to score, and it saves a judge-model call.
@@ -322,6 +323,23 @@ def print_char_limits(results, cases):
     print("  over: " + (", ".join(over) if over else "none"))
 
 
+def print_stock_openers(results, previous):
+    """Count replies that open with a generic, AI-sounding phrase ("It's
+    understandable...", "I understand..."), exactly rather than by the judge."""
+
+    def count(run):
+        msgs = [r["reply"].get("message") for r in run if "error" not in r]
+        msgs = [m for m in msgs if m]
+        return sum(has_stock_opener(m) for m in msgs), len(msgs)
+
+    hits, total = count(results)
+    line = f"\n=== Stock openers: {hits}/{total} replies"
+    if previous:
+        old_hits, old_total = count(previous)
+        line += f", previous run {old_hits}/{old_total}"
+    print(line + " ===")
+
+
 def load_previous_run(judge_model):
     """Load the most recent earlier run scored by the same judge, or None.
 
@@ -411,6 +429,7 @@ def main():
     print_tag_recall(results, cases, previous)
     print_engagement_accuracy(results, cases, previous)
     print_char_limits(results, cases)
+    print_stock_openers(results, previous)
     # A judge that fails (e.g. a wrong model name, or answers cut off for
     # length) leaves rows with no scores, which would otherwise look like a
     # quiet but valid run.

@@ -27,9 +27,9 @@ from firebase_logger import init_firebase, log_to_firestore
 from llm import (
     assess_engagement,
     extract_tags,
-    fit_char_limit,
     generate_reply,
     get_llm_client,
+    polish_reply,
     score_reply_quality,
 )
 from prompt_builder import (
@@ -491,10 +491,9 @@ if st.session_state.get("run"):
         parsed = generate_reply(
             client, prompt, comment, draft, usage_log=usage_log, revision=revision
         )
-        # Enforce the user's character limit, if they set one (see
-        # fit_char_limit for how). Clarifying questions are left as they are.
-        if parsed.message and not parsed.needs_clarification:
-            parsed.message = fit_char_limit(client, parsed.message, char_limit, usage_log=usage_log)
+        # Final touches: rewrite a generic opening sentence, then fit the
+        # user's character limit if they set one (see llm.polish_reply).
+        parsed = polish_reply(client, parsed, comment, char_limit=char_limit, usage_log=usage_log)
 
         user_in = json.dumps({"comment": comment, "draft_reply": draft})
         itype = parsed.input_type

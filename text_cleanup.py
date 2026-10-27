@@ -46,6 +46,23 @@ def trim_to_char_limit(text, limit):
     return text[: limit - 3].rsplit(" ", 1)[0] + "..."
 
 
+# Generic openings that make a reply sound AI-written. The prompt bans them;
+# this list lets the eval count how often they still slip through. ['’]
+# matches both a straight and a curly apostrophe (It's / It’s).
+_STOCK_OPENER = re.compile(
+    r"^\W*(i hear you|i understand|i get (that|it)|i appreciate|great question|"
+    r"that['’]s a (fair|great|good) point|it['’]?s (totally |completely |really )?"
+    r"(an? )?(understandable|great|wonderful|common|interesting|important|good)|"
+    r"it sounds like|you['’]re expressing|you seem|many people (believe|think|feel))",
+    re.IGNORECASE,
+)
+
+
+def has_stock_opener(text):
+    """True if the reply starts with one of the generic openings above."""
+    return bool(_STOCK_OPENER.match(text or ""))
+
+
 def remove_em_dashes(text):
     """Replace em dashes (and spaced en dashes) with a comma and a space.
 

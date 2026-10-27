@@ -34,7 +34,7 @@ from config import (
     get_llm_api_key,
 )
 from jsonutils import parse_json_object
-from text_cleanup import remove_em_dashes, trim_to_char_limit
+from text_cleanup import has_stock_opener, remove_em_dashes, trim_to_char_limit
 
 # A "logger" writes messages to the console/server logs, separately from
 # whatever the user sees in the Streamlit UI. __name__ is a built-in
@@ -467,3 +467,48 @@ def fit_char_limit(client, message, limit, model=MODEL_NAME, usage_log=None):
     except Exception:
         logger.exception("Shortening to the character limit failed")
     return trim_to_char_limit(message, limit)
+
+
+def fix_stock_opener(client, message, comment, model=MODEL_NAME, usage_log=None):
+    """Rewrite a generic, AI-sounding first sentence ("It's understandable...").
+
+    The prompt already bans these openings, but some still slip through, so
+    replies that start with one get a quick second pass that rewrites only
+    the first sentence (prompt8.txt). If the rewrite fails or still starts
+    the same way, the original reply is kept.
+    """
+    if not has_stock_opener(message):
+        return message
+    try:
+        prompt = load_prompt("prompt8.txt").format(comment=comment or "N/A", message=message)
+        r = _create_completion(
+            client,
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_tokens=REPLY_MAX_TOKENS,
+        )
+        _record_usage(r, usage_log)
+        rewritten = remove_em_dashes((r.choices[0].message.content or "").strip().strip('"'))
+        if rewritten and not has_stock_opener(rewritten):
+            return rewritten
+    except Exception:
+        logger.exception("Rewriting a stock opener failed")
+    return message
+
+
+def polish_reply(client, reply, comment, char_limit=None, model=MODEL_NAME, usage_log=None):
+    """The final touches applied to every real reply, in order: fix a
+    generic opening, then fit the character limit (last, so nothing can
+    push the reply back over it). Clarifying questions are left alone.
+    The app and the eval both call this, so they always match.
+    """
+    if not reply.message or reply.needs_clarification:
+        return reply
+    reply.message = fix_stock_opener(
+        client, reply.message, comment, model=model, usage_log=usage_log
+    )
+    reply.message = fit_char_limit(
+        client, reply.message, char_limit, model=model, usage_log=usage_log
+    )
+    return reply
