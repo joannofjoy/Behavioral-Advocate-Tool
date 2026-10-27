@@ -347,7 +347,7 @@ with st.expander("Optional: Your draft reply"):
 # One-click choices for common platforms, so nobody needs to know the
 # numbers, plus "Custom" for anything else. None means no limit.
 CHAR_LIMIT_CHOICES = {
-    "No limit": None,
+    "No limit (default)": None,
     "X (280)": 280,
     "Bluesky (300)": 300,
     "TikTok (150)": 150,
@@ -357,7 +357,7 @@ CHAR_LIMIT_CHOICES = {
 
 def chosen_char_limit():
     """The character limit currently picked, or None for no limit."""
-    choice = st.session_state.get("char_limit_choice") or "No limit"
+    choice = st.session_state.get("char_limit_choice") or "No limit (default)"
     if choice == "Custom":
         return st.session_state.get("char_limit_input")
     return CHAR_LIMIT_CHOICES[choice]
@@ -375,7 +375,7 @@ with st.expander(limit_title, key="char_limit_section"):
     choice = st.segmented_control(
         "Character limit",
         list(CHAR_LIMIT_CHOICES),
-        default="No limit",
+        default="No limit (default)",
         required=True,
         key="char_limit_choice",
         label_visibility="collapsed",
