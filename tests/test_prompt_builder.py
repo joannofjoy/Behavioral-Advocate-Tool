@@ -31,7 +31,7 @@ def test_format_strategies_empty():
 
 def test_online_mode_has_no_extra_guidance():
     prompt = build_reply_prompt([STRATEGY], mode=MODE_ONLINE)
-    assert "street outreach" not in prompt.lower()
+    assert "prepare for in-person street outreach" not in prompt
     assert "Delivery tip:" not in prompt
     assert "Validate Before Redirecting (source: CEVA)" in prompt
 

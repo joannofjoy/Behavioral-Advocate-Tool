@@ -178,12 +178,14 @@ st.html(
     /* The currently selected mode pill: solid green with white text, so it
        clearly stands out from the other two (Streamlit's default is a pale
        tint). aria-checked="true" is how Streamlit marks the selected one. */
-    .st-key-mode_input button[aria-checked="true"] {
+    .st-key-mode_input button[aria-checked="true"],
+    .st-key-char_limit_choice button[aria-checked="true"] {
         background: #15803d !important;
         border-color: #15803d !important;
         color: #ffffff !important;
     }
-    .st-key-mode_input button[aria-checked="true"] * { color: #ffffff !important; }
+    .st-key-mode_input button[aria-checked="true"] *,
+    .st-key-char_limit_choice button[aria-checked="true"] * { color: #ffffff !important; }
     /* The reply and its explanation: a white card with a green left edge. */
     .reply-card {
         background: #ffffff;
@@ -283,7 +285,7 @@ st.html(
         background: transparent !important;
         box-shadow: none !important;
     }
-    [data-testid="stExpanderDetails"]:has(.st-key-char_limit_input) {
+    [data-testid="stExpanderDetails"]:has(.st-key-char_limit_choice) {
         padding: 0 0.4rem 0.4rem !important;
         border-top: 1px solid #d8e3dc;
     }
@@ -342,22 +344,54 @@ with st.expander("Optional: Your draft reply"):
 # An optional maximum length for the reply, in characters - the unit
 # platforms use for their comment limits. value=None leaves the box empty,
 # meaning no limit; Streamlit then returns None instead of a number.
+# One-click choices for common platforms, so nobody needs to know the
+# numbers, plus "Custom" for anything else. None means no limit.
+CHAR_LIMIT_CHOICES = {
+    "No limit": None,
+    "X (280)": 280,
+    "Bluesky (300)": 300,
+    "TikTok (150)": 150,
+    "Custom": "custom",
+}
+
+
+def chosen_char_limit():
+    """The character limit currently picked, or None for no limit."""
+    choice = st.session_state.get("char_limit_choice") or "No limit"
+    if choice == "Custom":
+        return st.session_state.get("char_limit_input")
+    return CHAR_LIMIT_CHOICES[choice]
+
+
 # It sits in a collapsible section like the draft box; once a limit is set,
 # the section's title shows it, so it's visible even while collapsed.
-current_limit = st.session_state.get("char_limit_input")
-limit_title = "Optional: Character limit" + (f" · {current_limit}" if current_limit else "")
-# The fixed key keeps the section open while its title changes as you type.
+current_limit = chosen_char_limit()
+limit_title = "Optional: Character limit" + (
+    f" · {current_limit} characters" if current_limit else ""
+)
+# The fixed key keeps the section open while its title changes.
 with st.expander(limit_title, key="char_limit_section"):
-    char_limit = st.number_input(
+    st.caption("Keep the reply short enough for the platform you're posting on.")
+    choice = st.segmented_control(
         "Character limit",
-        min_value=50,
-        max_value=5000,
-        value=None,
-        step=10,
-        placeholder="No limit - e.g. X 280, Bluesky 300, TikTok comments 150",
-        key="char_limit_input",
+        list(CHAR_LIMIT_CHOICES),
+        default="No limit",
+        required=True,
+        key="char_limit_choice",
         label_visibility="collapsed",
     )
+    if choice == "Custom":
+        st.number_input(
+            "Your limit",
+            min_value=50,
+            max_value=5000,
+            value=None,
+            step=10,
+            placeholder="Number of characters, e.g. 500",
+            key="char_limit_input",
+            label_visibility="collapsed",
+        )
+char_limit = chosen_char_limit()
 
 if st.button("Generate a reply", type="primary"):
     if not comment.strip() and not draft.strip():

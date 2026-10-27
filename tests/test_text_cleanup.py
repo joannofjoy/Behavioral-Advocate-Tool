@@ -52,3 +52,12 @@ def test_stock_openers_with_curly_apostrophes_and_therapist_phrasing():
 
     assert has_stock_opener("It\u2019s a great question! Vegans have...")
     assert has_stock_opener("You're expressing frustration with how...")
+
+
+def test_restating_the_comment_is_detected():
+    from text_cleanup import restates_comment
+
+    comment = "You cannot thrive without animal protein."
+    assert restates_comment("You cannot thrive without animal protein, but many...", comment)
+    assert not restates_comment("Plenty of people thrive without animal protein.", comment)
+    assert not restates_comment("Anything at all.", "Too short")

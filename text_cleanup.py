@@ -63,6 +63,22 @@ def has_stock_opener(text):
     return bool(_STOCK_OPENER.match(text or ""))
 
 
+def _words(text):
+    """Lowercase words with punctuation stripped, for loose comparisons."""
+    return re.findall(r"[a-z0-9']+", (text or "").lower().replace("’", "'"))
+
+
+def restates_comment(reply, comment, length=4):
+    """True if the reply opens by repeating the start of the comment.
+
+    A reply that begins "You cannot thrive without animal protein, but..."
+    in answer to "You cannot thrive without animal protein" reads as if it
+    agrees with the claim. Compares the first few words of each.
+    """
+    start = _words(comment)[:length]
+    return len(start) == length and _words(reply)[:length] == start
+
+
 def remove_em_dashes(text):
     """Replace em dashes (and spaced en dashes) with a comma and a space.
 

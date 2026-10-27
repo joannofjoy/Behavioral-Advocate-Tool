@@ -34,7 +34,12 @@ from config import (
     get_llm_api_key,
 )
 from jsonutils import parse_json_object
-from text_cleanup import has_stock_opener, remove_em_dashes, trim_to_char_limit
+from text_cleanup import (
+    has_stock_opener,
+    remove_em_dashes,
+    restates_comment,
+    trim_to_char_limit,
+)
 
 # A "logger" writes messages to the console/server logs, separately from
 # whatever the user sees in the Streamlit UI. __name__ is a built-in
@@ -477,7 +482,8 @@ def fix_stock_opener(client, message, comment, model=MODEL_NAME, usage_log=None)
     the first sentence (prompt8.txt). If the rewrite fails or still starts
     the same way, the original reply is kept.
     """
-    if not has_stock_opener(message):
+    # Also rewritten: an opening that repeats the person's claim word for word.
+    if not has_stock_opener(message) and not restates_comment(message, comment):
         return message
     try:
         prompt = load_prompt("prompt8.txt").format(comment=comment or "N/A", message=message)
@@ -490,7 +496,15 @@ def fix_stock_opener(client, message, comment, model=MODEL_NAME, usage_log=None)
         )
         _record_usage(r, usage_log)
         rewritten = remove_em_dashes((r.choices[0].message.content or "").strip().strip('"'))
-        if rewritten and not has_stock_opener(rewritten):
+        # Rejected if it simply dropped the framing and now opens by
+        # repeating the person's claim as if it were true (e.g. "It's a
+        # common belief that you can't thrive without meat" becoming "You
+        # can't thrive without meat, but...").
+        if (
+            rewritten
+            and not has_stock_opener(rewritten)
+            and not restates_comment(rewritten, comment)
+        ):
             return rewritten
     except Exception:
         logger.exception("Rewriting a stock opener failed")

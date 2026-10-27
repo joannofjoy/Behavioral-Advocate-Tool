@@ -314,5 +314,15 @@
     "draft": "",
     "note": "TikTok's tight 150-character comment limit. The reply must fit and still read as a complete, natural sentence.",
     "char_limit": 150
+  },
+  {
+    "id": "thrive_without_animal_protein",
+    "comment": "You cannot thrive without animal protein.",
+    "draft": "",
+    "expected_tags": [
+      "necessary"
+    ],
+    "expected_worth_engaging": true,
+    "note": "Real test input that once got a reply opening 'You cannot thrive without animal protein, but...' - repeating the false claim as if agreeing. The reply must not open with the claim; it should gently correct it."
   }
 ]

@@ -27,7 +27,7 @@ from llm import assess_engagement, extract_tags, generate_reply, get_llm_client,
 from prompt_builder import MODE_ONLINE, build_reply_prompt, text_for_strategy_matching
 from retrieval import load_strategy_embeddings, select_strategies
 from strategies import load_strategies
-from text_cleanup import has_stock_opener
+from text_cleanup import has_stock_opener, restates_comment
 
 from .judge import ROUTINE_JUDGE_MODEL, STRONG_JUDGE_MODEL, JudgeScores, judge_output
 
@@ -129,6 +129,7 @@ def run_case(client, model, case, strategies, retrieval, strategy_vectors, judge
     return {
         "case_id": case["id"],
         "model": model,
+        "comment": comment,
         "mode": mode,
         "retrieval": retrieval,
         "judge_model": judge_model,
@@ -328,9 +329,11 @@ def print_stock_openers(results, previous):
     understandable...", "I understand..."), exactly rather than by the judge."""
 
     def count(run):
-        msgs = [r["reply"].get("message") for r in run if "error" not in r]
-        msgs = [m for m in msgs if m]
-        return sum(has_stock_opener(m) for m in msgs), len(msgs)
+        # A reply also counts if it opens by repeating the comment word for
+        # word, which reads as agreeing with the claim.
+        pairs = [(r["reply"].get("message"), r.get("comment", "")) for r in run if "error" not in r]
+        pairs = [(m, c) for m, c in pairs if m]
+        return sum(has_stock_opener(m) or restates_comment(m, c) for m, c in pairs), len(pairs)
 
     hits, total = count(results)
     line = f"\n=== Stock openers: {hits}/{total} replies"
