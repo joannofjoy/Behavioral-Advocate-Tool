@@ -227,6 +227,9 @@ def tag_recall(results, cases):
     Some cases list "expected_tags" - claims the tagger must catch for the
     right strategies to be offered (e.g. "essential to our health" must be
     tagged "necessary"). Unlike the judge's scores, this is an exact check.
+    An expected tag written as "a|b" counts as found if either is present,
+    for claims that fit two tags equally well (e.g. a worry that going vegan
+    is unhealthy is both "necessary" and "health concern").
     Returns (found, total, misses), where misses lists "case: tag" pairs.
     """
     expected = {c["id"]: c["expected_tags"] for c in cases if c.get("expected_tags")}
@@ -236,7 +239,7 @@ def tag_recall(results, cases):
             continue
         for tag in expected[r["case_id"]]:
             total += 1
-            if tag in r.get("tags", []):
+            if any(option in r.get("tags", []) for option in tag.split("|")):
                 found += 1
             else:
                 misses.append(f"{r['case_id']}: {tag}")
@@ -254,6 +257,43 @@ def print_tag_recall(results, cases, previous):
             line += f", previous run {old_found}/{old_total} ({old_found / old_total:.0%})"
     print(line + " ===")
     print("  missed: " + (", ".join(misses) if misses else "none"))
+
+
+def engagement_accuracy(results, cases):
+    """How often the engagement check made the expected call.
+
+    Some cases say whether the comment should be judged worth a full
+    persuasive reply ("expected_worth_engaging"). Flagging a blunt but
+    answerable comment as bad faith means the reply skips persuasion
+    entirely, so this is checked exactly rather than left to the judge.
+    Returns (correct, total, misses).
+    """
+    expected = {
+        c["id"]: c["expected_worth_engaging"] for c in cases if "expected_worth_engaging" in c
+    }
+    correct, total, misses = 0, 0, []
+    for r in results:
+        if "error" in r or r["case_id"] not in expected:
+            continue
+        total += 1
+        if r.get("worth_engaging") == expected[r["case_id"]]:
+            correct += 1
+        else:
+            misses.append(f"{r['case_id']} (expected {expected[r['case_id']]})")
+    return correct, total, misses
+
+
+def print_engagement_accuracy(results, cases, previous):
+    correct, total, misses = engagement_accuracy(results, cases)
+    if not total:
+        return
+    line = f"\n=== Engagement check: {correct}/{total} correct"
+    if previous:
+        old_correct, old_total, _ = engagement_accuracy(previous, cases)
+        if old_total:
+            line += f", previous run {old_correct}/{old_total}"
+    print(line + " ===")
+    print("  wrong: " + (", ".join(misses) if misses else "none"))
 
 
 def load_previous_run(judge_model):
@@ -343,6 +383,7 @@ def main():
     if previous:
         print_case_drops(results, previous)
     print_tag_recall(results, cases, previous)
+    print_engagement_accuracy(results, cases, previous)
     # A judge that fails (e.g. a wrong model name, or answers cut off for
     # length) leaves rows with no scores, which would otherwise look like a
     # quiet but valid run.

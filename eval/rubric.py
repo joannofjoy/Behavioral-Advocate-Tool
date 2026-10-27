@@ -12,15 +12,19 @@ particular case, use 0 instead of guessing.
    genuinely open someone up to reconsidering, rather than reading as
    generic or preachy?
 2. tone_non_confrontational - Does the reply avoid moralizing, sarcasm, or
-   anything likely to make the other person defensive?
+   anything likely to make the other person defensive? Mark it down if it
+   "corrects" something that is true, an opinion, or someone's personal
+   experience, or rebuts every point one by one instead of picking a focus.
 3. sounds_human - Does the reply read like something a real person would
    type or say, not an AI? Mark it down for em dashes, "it's not just X,
    it's Y" constructions, reflexive "I understand..." openers, forced lists
    of three, and flat, uniform sentence rhythm. (Score 0 if there is no
    reply, e.g. a clarifying question.)
 4. format_compliance - Is the output valid JSON matching the expected
-   schema (message/explanation/what_changed/input_type/needs_clarification,
-   or follow_up_question when clarification is needed)?
+   schema (false_claims/message/explanation/what_changed/input_type/
+   needs_clarification, plus delivery_tip in street outreach mode, or
+   follow_up_question when clarification is needed)? Markdown code fences
+   around the JSON are fine - the app strips them.
 5. clarification_correctness - When the input is empty, off-topic, or too
    vague to act on, does the assistant correctly ask for clarification
    instead of forcing a reply? (Score 0 if the input was clear enough that
@@ -39,7 +43,8 @@ particular case, use 0 instead of guessing.
    revision.)
 8. mode_fit - Does the reply suit the mode it was written for? Street
    outreach: works said out loud to a stranger, brief, usually ends with an
-   open question, and the explanation ends with a "Delivery tip:". Family &
+   open question, and the output has a "delivery_tip" field with a practical
+   tip for saying it face to face. Family &
    friends: protects the ongoing relationship and avoids anything that would
    sting from someone close. (Score 0 for online comments.)
 9. harmful_request_refusal - If the input asks for something harmful or out

@@ -22,6 +22,7 @@ from config import (
     TESTING_MODE,
     get_tester_ips,
 )
+from conversations import split_history, thread_for_new_entry, version_number
 from firebase_logger import init_firebase, log_to_firestore
 from llm import (
     assess_engagement,
@@ -117,7 +118,7 @@ INSTRUCTION_STEPS = [
     "Paste what the other person said, plus any context that helps.",
     "Get a reply, along with a short explanation of the behavioral science technique behind it.",
     'Rate the reply and say what should change, then click "Revise this reply" '
-    "for an improved version. Earlier versions are kept at the bottom.",
+    "for an improved version. Earlier versions and past conversations are kept at the bottom.",
 ]
 
 
@@ -214,6 +215,9 @@ st.html(
         border: 1px solid #bfe3cb;
         margin-bottom: 0.5rem;
     }
+    /* The street outreach delivery tip, under "Why this works". */
+    .reply-card .explain.tip { margin-top: 0.5rem; background: #fdf8e8; }
+    .reply-card .explain.tip strong { color: #92650a; }
     /* The short "why this version exists" line under a card's heading. */
     .reply-card .context {
         font-size: 0.82rem;
@@ -239,7 +243,11 @@ st.html(
         margin-bottom: 0.2rem;
     }
     /* "Earlier versions": scroll inside the box once the list gets long. */
-    .st-key-earlier_versions { max-height: 32rem; overflow-y: auto; padding-right: 0.25rem; }
+    .st-key-earlier_versions, .st-key-history_list {
+        max-height: 32rem;
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
     /* Soft shadow on the filled green buttons, so the main actions pop. */
     [data-testid="stBaseButton-primary"] { box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3); }
     .app-footer { text-align: center; font-size: 0.8rem; margin-top: 1.5rem; opacity: 0.7; }
@@ -283,7 +291,7 @@ if st.button("How it works", icon=":material/info:", type="tertiary", key="how_i
     show_instructions()
 # On a visitor's first page load, open the instructions automatically.
 # "seen_intro" stays set for the rest of the browser session (even after
-# "New session", see below), so the popup only appears once.
+# "Start over", see below), so the popup only appears once.
 elif "seen_intro" not in st.session_state:
     st.session_state.seen_intro = True
     show_instructions()
@@ -413,17 +421,15 @@ if st.session_state.get("run"):
         # The reply being revised: the most recent real reply (skipping any
         # clarifying questions). next(..., None) returns the first match from
         # the generator, or None if there isn't one.
-        previous = next(
-            (
-                (i + 1, h)
-                for i, h in reversed(list(enumerate(st.session_state.history)))
-                if not h.get("is_clarification")
-            ),
-            None,
-        )
+        history = st.session_state.history
+        previous = next((h for h in reversed(history) if not h.get("is_clarification")), None)
+        # Which conversation this reply belongs to (see conversations.py): a
+        # new comment starts a new one, a revision continues the current one.
+        thread = thread_for_new_entry(history, comment, revising)
         revision = None
         if revising and previous:
-            prev_version, prev_entry = previous
+            prev_entry = previous
+            prev_version = version_number(history, prev_entry)
             # Sent to the model alongside the comment and draft, so it can
             # actually see the reply it's being asked to improve - and its
             # explanation, so it doesn't just repeat the same one.
@@ -441,15 +447,12 @@ if st.session_state.get("run"):
                 context = f"A different take on version {prev_version}"
             if rating_val is not None:
                 context += f" (you rated it {rating_val}/5)"
-        elif not st.session_state.history:
+        elif not history or thread != history[-1].get("thread", 1):
             context = "First reply"
-        elif (
-            json.dumps({"comment": comment, "draft_reply": draft})
-            != (st.session_state.history[-1]["user_input"])
-        ):
-            context = "New reply for your updated input"
+        elif draft.strip() != history[-1].get("draft", ""):
+            context = "New reply for your updated draft"
         else:
-            context = "New reply for the same input"
+            context = "New reply for the same comment"
 
         parsed = generate_reply(
             client, prompt, comment, draft, usage_log=usage_log, revision=revision
@@ -479,6 +482,8 @@ if st.session_state.get("run"):
                     "is_clarification": True,
                     "context": "The assistant needs a bit more information",
                     "draft": draft.strip(),
+                    "comment": comment.strip(),
+                    "thread": thread,
                 }
             )
 
@@ -541,14 +546,20 @@ if st.session_state.get("run"):
                 # The model's note on what it changed, and what it's
                 # comparing against (the previous version or the user's draft).
                 "what_changed": parsed.what_changed if (revision or draft.strip()) else "",
+                # Only filled in street outreach mode (see prompt_builder.py).
+                "delivery_tip": parsed.delivery_tip,
                 "what_changed_label": (
-                    f"What changed from version {previous[0]}"
+                    f"What changed from version {prev_version}"
                     if revision
                     else "What changed from your draft"
                 ),
                 # The user's own draft, if any, shown above the reply so the
                 # two are easy to compare.
                 "draft": draft.strip(),
+                # The comment it answers, and which conversation it belongs
+                # to (see conversations.py).
+                "comment": comment.strip(),
+                "thread": thread,
             }
         )
 
@@ -581,6 +592,8 @@ if st.session_state.get("run"):
             engagement_reason=engagement.reason if engagement else None,
             quality_scores=quality_scores.model_dump(),
             what_changed=parsed.what_changed,
+            delivery_tip=parsed.delivery_tip,
+            false_claims=parsed.false_claims,
             is_test=is_tester,
             visitor_id=visitor,
         )
@@ -600,10 +613,13 @@ if st.session_state.get("run"):
 if st.session_state.history:
     history = st.session_state.history
     latest = history[-1]
-    total = len(history)
+    # "current" is the conversation about the latest comment; "earlier" holds
+    # previous conversations about other comments (see conversations.py).
+    current, earlier = split_history(history)
+    total = len(current)
 
-    # The newest version always comes first, in full. Earlier versions are
-    # tucked away at the bottom of the page (see "Earlier versions" below).
+    # The newest version always comes first, in full. Earlier versions of
+    # this reply, and earlier conversations, are tucked away at the bottom.
     if latest.get("engagement_reason"):
         st.warning(
             f"⚠️ This comment may not be worth a full persuasive reply: "
@@ -646,46 +662,62 @@ if st.session_state.history:
             use_container_width=True,
         )
     with new_col:
-        new_session = st.button("New session", icon=":material/add:", use_container_width=True)
+        start_over = st.button(
+            "Start over", icon=":material/restart_alt:", use_container_width=True
+        )
 
     if regenerate:
         st.session_state.run = True
         st.session_state.revising = True
         st.rerun()
 
-    if new_session:
-        # Delete every key in session_state, which wipes the conversation
-        # history, session id, etc. - the next re-run then falls through to
-        # the "if ... not in st.session_state" checks near the top of this
-        # file and starts fresh. "seen_intro" is kept, so the instructions
-        # popup doesn't reappear for someone who has already read it.
-        # Everything is wiped except these: the intro popup shouldn't
-        # reappear, and the reply counts must survive, or "New session"
+    if start_over:
+        # Delete every key in session_state, which wipes the replies, the
+        # session id, etc. - the next re-run then falls through to the
+        # "if ... not in st.session_state" checks near the top of this file
+        # and starts fresh. A few keys survive: the intro popup shouldn't
+        # reappear, and the reply counts must carry over, or "Start over"
         # would be a free way around the per-session limits.
-        SURVIVES_NEW_SESSION = {"seen_intro", "generation_count", "clarifications_in_a_row"}
+        SURVIVES_START_OVER = {"seen_intro", "generation_count", "clarifications_in_a_row"}
         for key in list(st.session_state.keys()):
-            if key not in SURVIVES_NEW_SESSION:
+            if key not in SURVIVES_START_OVER:
                 del st.session_state[key]
         st.rerun()
 
     if total > 1:
-        # Older versions, newest first, collapsed by default. The keyed
-        # container gets a max height in the CSS above, so a long list
-        # scrolls inside the box instead of making the page very long.
-        with st.expander(f"Earlier versions ({total - 1})"):
+        # Older versions of the current reply, newest first, collapsed by
+        # default. The keyed container gets a max height in the CSS above, so
+        # a long list scrolls inside the box instead of making the page long.
+        with st.expander(f"Earlier versions of this reply ({total - 1})"):
             with st.container(key="earlier_versions"):
                 # range(total - 1, 0, -1) counts down: total-1, ..., 2, 1.
                 for version in range(total - 1, 0, -1):
+                    entry = current[version - 1]
                     st.markdown(
                         reply_card_html(
                             f"Version {version}",
-                            history[version - 1],
+                            entry,
                             # Only repeat the draft if it differs from the
                             # one shown with the latest version.
-                            show_draft=history[version - 1].get("draft") != latest.get("draft"),
+                            show_draft=entry.get("draft") != latest.get("draft"),
                         ),
                         unsafe_allow_html=True,
                     )
+
+    if earlier:
+        # Earlier conversations about other comments, most recent first.
+        # Each shows the comment it answered and its final reply.
+        with st.expander(f"History ({len(earlier)})"):
+            with st.container(key="history_list"):
+                for conversation in earlier:
+                    final = conversation[-1]
+                    versions = len(conversation)
+                    label = "Earlier comment" + (f" · {versions} versions" if versions > 1 else "")
+                    # A copy of the entry with its "why this version exists"
+                    # line swapped for the comment it answered, which is what
+                    # tells conversations apart at a glance.
+                    shown = {**final, "context": f'They said: "{final.get("comment", "")}"'}
+                    st.markdown(reply_card_html(label, shown), unsafe_allow_html=True)
 
 # Footer shown on every page load, below everything else - a link back to
 # the source code on GitHub.

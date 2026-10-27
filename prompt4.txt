@@ -9,6 +9,11 @@ Based on research on online discourse, flag a comment ONLY when one of these cle
 
 Most comments, even skeptical, blunt, or frustrated ones, are still worth a genuine persuasive reply. Only flag the comment when one of the three circumstances above clearly applies, not merely because someone disagrees or sounds annoyed.
 
+A blunt claim or generalization about vegans is still a claim, not bad faith - it can be answered. Examples that ARE worth engaging: "Vegans are too weak to fight", "Vegans are so preachy", "Meat and milk are the best", "Plants feel pain too", "I'll always eat meat, it's essential".
+Examples that are NOT worth engaging: a pure insult with nothing to respond to ("vegans are idiots lol"), "I'm not discussing this with you, end of conversation", or deliberate trolling ("I'll eat two steaks just to annoy you").
+
+The comment may include notes from the advocate about the situation (e.g. "it's my uncle on Facebook"); judge only the other person's words. When in doubt, return true.
+
 Return a JSON object:
 {{
   "worth_engaging": true or false,

@@ -40,7 +40,8 @@ def test_street_mode_adds_guidance_and_delivery_tip_at_the_end():
     prompt = build_reply_prompt([STRATEGY], mode=MODE_STREET)
     assert prompt.startswith("You are helping an activist prepare for in-person street outreach")
     # The delivery-tip rule has to come last, or the model tends to ignore it.
-    assert prompt.rstrip().endswith("let the other person think).")
+    assert prompt.rstrip().endswith("It is required in this mode.")
+    assert '"delivery_tip"' in prompt
 
 
 def test_family_mode_adds_relationship_guidance():

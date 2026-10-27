@@ -51,12 +51,16 @@ MODE_GUIDANCE = {
 # start. The main prompt has its own rules for the explanation field ("2-4
 # sentences..."), and the model tends to follow whichever instruction it
 # read last - a request placed at the start kept getting ignored.
+#
+# The delivery tip is its own JSON field rather than a sentence at the end of
+# the explanation: asked to append it to the explanation, the model sometimes
+# forgot, while a required field gets filled in reliably.
 MODE_EXPLANATION_ADDON = {
     MODE_STREET: (
-        "\n\nFor this street outreach reply, the explanation field must end with "
-        "one extra sentence starting with 'Delivery tip:' that gives the activist "
-        "one practical tip for saying this face to face (tone, pacing, or when to "
-        "pause and let the other person think)."
+        '\n\nFor this street outreach reply, also add a "delivery_tip" field to the '
+        "JSON: one sentence giving the activist a practical tip for saying this "
+        "face to face (tone, pacing, or when to pause and let the other person "
+        "think). It is required in this mode."
     ),
 }
 

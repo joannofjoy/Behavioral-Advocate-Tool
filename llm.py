@@ -56,6 +56,10 @@ class ReplyResponse(BaseModel):
     back to that default, same as the old dict.get(..., default) calls did.
     """
 
+    # Factually wrong claims the model spotted in the comment, written out
+    # before the reply itself. Listing them first is what makes the reply
+    # reliably correct them (see prompt2.txt). Logged, never shown.
+    false_claims: list[str] = []
     message: str = ""
     follow_up_question: str = ""
     explanation: str = ""
@@ -64,6 +68,9 @@ class ReplyResponse(BaseModel):
     # A separate field, rather than part of "explanation", because the model
     # reliably fills in a required field but often skips a writing rule.
     what_changed: str = ""
+    # Street outreach mode only: one practical tip for saying the reply face
+    # to face. Empty in the other modes.
+    delivery_tip: str = ""
     input_type: str = "unknown"
     needs_clarification: bool = False
     # The exact text the model returned, before any parsing/validation -

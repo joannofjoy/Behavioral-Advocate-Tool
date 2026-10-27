@@ -48,5 +48,11 @@ def reply_card_html(label, entry, show_context=True, show_draft=True):
             f"<div class='explain'><strong>Why this works:</strong> "
             f"{html.escape(entry['explanation'])}</div>"
         )
+    # Street outreach mode only: how to say the reply face to face.
+    if entry.get("delivery_tip"):
+        parts.append(
+            f"<div class='explain tip'><strong>Delivery tip:</strong> "
+            f"{html.escape(entry['delivery_tip'])}</div>"
+        )
     parts.append("</div>")
     return "".join(parts)

@@ -82,6 +82,8 @@ def log_to_firestore(
     is_test=False,
     what_changed=None,
     visitor_id=None,
+    delivery_tip=None,
+    false_claims=None,
 ):
     """Save one reply/session record to the "session_logs" collection.
 
@@ -157,6 +159,11 @@ def log_to_firestore(
         # A scrambled ID for the visitor's IP address (see usage_limits.py),
         # never the address itself - lets analysis group sessions by visitor.
         "visitor_id": visitor_id,
+        # Street outreach mode only: the tip for saying the reply aloud.
+        "delivery_tip": delivery_tip,
+        # Factual errors the model spotted in the comment before replying
+        # (see prompt2.txt) - handy for checking what it chose to correct.
+        "false_claims": false_claims,
     }
     try:
         # uuid.uuid4() generates a random, practically-unique ID to use as

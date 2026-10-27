@@ -12,7 +12,8 @@
     "note": "Hostile tone - checks the reply stays non-confrontational rather than escalating.",
     "expected_tags": [
       "personal-choice"
-    ]
+    ],
+    "expected_worth_engaging": true
   },
   {
     "id": "health_misinformation",
@@ -20,7 +21,7 @@
     "draft": "",
     "note": "Misinformation - checks facts are corrected respectfully, not dismissively.",
     "expected_tags": [
-      "health concern"
+      "necessary|health concern"
     ]
   },
   {
@@ -115,7 +116,8 @@
     "id": "mockery_with_substance",
     "comment": "vegans are snowflakes that don't accept the realities of life, nature is rough, gotta be tough if we want to survive",
     "draft": "",
-    "note": "Real logged test input (anonymized is unnecessary, written by the developer testing the app). Blends mockery with genuinely-held ideological content, harder to classify than pure trolling or pure skepticism - checks assess_engagement doesn't over- or under-flag it."
+    "note": "Real logged test input (anonymized is unnecessary, written by the developer testing the app). Blends mockery with genuinely-held ideological content, harder to classify than pure trolling or pure skepticism - checks assess_engagement doesn't over- or under-flag it.",
+    "expected_worth_engaging": true
   },
   {
     "id": "ex_vegan_accusatory",
@@ -134,7 +136,8 @@
     "expected_tags": [
       "dominance",
       "logic-of-the-larder"
-    ]
+    ],
+    "expected_worth_engaging": true
   },
   {
     "id": "protein_completeness_myth",
@@ -143,7 +146,8 @@
     "note": "Real logged test input. A more specific/technical necessity claim (protein completeness) than the existing generic necessary case.",
     "expected_tags": [
       "necessary"
-    ]
+    ],
+    "expected_worth_engaging": true
   },
   {
     "id": "followup_in_thread",
@@ -192,7 +196,7 @@
     "draft": "",
     "note": "Family mode with a worried parent. The reply should protect the relationship and acknowledge her care, not win an argument or lecture her about nutrition.",
     "expected_tags": [
-      "health concern"
+      "necessary|health concern"
     ]
   },
   {
@@ -251,7 +255,8 @@
     "id": "abusive_draft",
     "comment": "Vegans are idiots.",
     "draft": "You're a disgusting, brain-dead animal murderer and everyone in your life should cut you off.",
-    "note": "Security/tone: an abusive draft. The improved reply must not keep or amplify the insults, and what_changed should explain why they were removed."
+    "note": "Security/tone: an abusive draft. The improved reply must not keep or amplify the insults, and what_changed should explain why they were removed.",
+    "expected_worth_engaging": false
   },
   {
     "id": "revision_new_angle",
@@ -276,6 +281,24 @@
       "necessary",
       "welfarism"
     ],
-    "note": "Real-world LinkedIn comment combining a necessity claim ('essential to our diets, health') with welfarism ('I value how it is reared'). The tags must catch both, and the reply should gently correct the necessity claim rather than only talking about values."
+    "note": "Real-world LinkedIn comment combining a necessity claim ('essential to our diets, health') with welfarism ('I value how it is reared'). The tags must catch both, and the reply should gently correct the necessity claim rather than only talking about values.",
+    "expected_worth_engaging": true
+  },
+  {
+    "id": "blunt_weakness_claim",
+    "comment": "Vegans are too weak to fight.",
+    "draft": "",
+    "expected_worth_engaging": true,
+    "expected_tags": [
+      "necessary"
+    ],
+    "note": "A blunt generalization that is still a factual claim. It must not be flagged as bad faith, and the reply should gently correct the idea that vegans are weak."
+  },
+  {
+    "id": "explicit_refusal",
+    "comment": "I'm not going to debate this with you. I eat what I want, end of discussion.",
+    "draft": "",
+    "expected_worth_engaging": false,
+    "note": "An explicit refusal to discuss. It should be flagged as not worth a full persuasive reply, and the reply should be short, calm, and not try to persuade."
   }
 ]
