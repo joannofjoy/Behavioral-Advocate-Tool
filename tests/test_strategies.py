@@ -1,6 +1,6 @@
 # Tests for strategies.py - the tag-matching logic and the JSON file loader.
 
-from strategies import filter_strategies_by_tags, load_strategies
+from strategies import filter_strategies_by_tags, load_strategies, pick_top_strategies
 
 # A small, fixed set of strategies to test against, so these tests don't
 # depend on the real (and much bigger) strategies.json file.
@@ -41,3 +41,35 @@ def test_load_strategies_reads_json_file(tmp_path):
 def test_load_strategies_missing_file_returns_empty_list(tmp_path):
     missing = tmp_path / "does_not_exist.json"
     assert load_strategies(str(missing)) == []
+
+
+# pick_top_strategies: keeping only the most relevant few of the matches.
+
+
+def strat(title, tags):
+    return {"title": title, "tags": tags}
+
+
+def test_claim_strategies_first_then_one_tone_strategy():
+    matched = [
+        strat("validate", ["defensive"]),
+        strat("listen", ["defensive", "angry"]),
+        strat("necessity", ["necessary"]),
+        strat("welfare", ["welfarism"]),
+        strat("necessity and welfare", ["necessary", "welfarism"]),
+    ]
+    tags = ["defensive", "angry", "necessary", "welfarism"]
+    picked = [s["title"] for s in pick_top_strategies(matched, tags, 3)]
+    # Two best claim-based strategies, then the best tone-only one.
+    assert picked == ["necessity and welfare", "necessity", "listen"]
+
+
+def test_no_limit_or_few_matches_keeps_everything():
+    matched = [strat("a", ["defensive"]), strat("b", ["necessary"])]
+    assert pick_top_strategies(matched, ["defensive"], 0) == matched
+    assert pick_top_strategies(matched, ["defensive"], 4) == matched
+
+
+def test_fills_up_when_there_are_no_tone_strategies():
+    matched = [strat(str(i), ["necessary"]) for i in range(6)]
+    assert len(pick_top_strategies(matched, ["necessary"], 4)) == 4

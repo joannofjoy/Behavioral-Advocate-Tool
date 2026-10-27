@@ -47,3 +47,58 @@ def filter_strategies_by_tags(all_strats, tags):
     matched_tags = sorted({t for s in matched for t in s.get("tags", []) if t in tags})
 
     return matched, matched_tags
+
+
+# The "tone" tags from prompt1.txt: how the person comes across, as opposed
+# to the claims they make. Keep this list in sync with that prompt.
+TONE_TAGS = {
+    "skeptical",
+    "defensive",
+    "resistant",
+    "curious",
+    "judgmental",
+    "uncertain",
+    "overwhelmed",
+    "angry",
+    "mocking",
+    "open",
+    "polarized",
+    "conflicted",
+    "closed",
+    "moral outrage",
+    "frustrated",
+}
+
+
+def pick_top_strategies(matched, tags, limit):
+    """Keep only the most relevant few of the tag-matched strategies.
+
+    Tag matching alone often offers 9-12 strategies in no particular order,
+    and with that many the model tends to fall back on the easiest one
+    (e.g. "validate first") and write something generic. So each strategy is
+    scored: 2 points per matching claim tag (it answers what the person
+    actually argued) and 1 point per matching tone tag. The result is up to
+    "limit" strategies: the best claim-based ones first, then the single best
+    tone-based one, so the reply still meets the person where they are.
+    A limit of 0 or None keeps them all.
+    """
+    if not limit or len(matched) <= limit:
+        return matched
+    wanted = set(tags)
+
+    def counts(s):
+        shared = wanted & set(s.get("tags", []))
+        return len(shared - TONE_TAGS), len(shared & TONE_TAGS)
+
+    # sorted() keeps the original order for ties, so the result is stable.
+    by_score = sorted(matched, key=lambda s: 2 * counts(s)[0] + counts(s)[1], reverse=True)
+    claim_based = [s for s in by_score if counts(s)[0] > 0]
+    tone_only = [s for s in by_score if counts(s)[0] == 0]
+    picked = claim_based[: limit - 1] + tone_only[:1]
+    # If there weren't enough of one kind, fill up with the next best overall.
+    for s in by_score:
+        if len(picked) >= limit:
+            break
+        if s not in picked:
+            picked.append(s)
+    return picked

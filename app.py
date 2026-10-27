@@ -275,6 +275,18 @@ st.html(
         padding: 0 0.4rem 0.4rem !important;
         border-top: 1px solid #d8e3dc;
     }
+    /* The same one-frame look for the character limit box. */
+    .st-key-char_limit_input [data-testid="stNumberInputContainer"],
+    .st-key-char_limit_input [data-baseweb="input"],
+    .st-key-char_limit_input input {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stExpanderDetails"]:has(.st-key-char_limit_input) {
+        padding: 0 0.4rem 0.4rem !important;
+        border-top: 1px solid #d8e3dc;
+    }
     </style>
 """
 )
@@ -330,17 +342,22 @@ with st.expander("Optional: Your draft reply"):
 # An optional maximum length for the reply, in characters - the unit
 # platforms use for their comment limits. value=None leaves the box empty,
 # meaning no limit; Streamlit then returns None instead of a number.
-char_limit = st.number_input(
-    "Character limit (optional)",
-    min_value=50,
-    max_value=5000,
-    value=None,
-    step=10,
-    placeholder="No limit",
-    key="char_limit_input",
-    help="The reply will fit within this many characters, spaces included. "
-    "For example: X 280, Bluesky 300, TikTok comments 150.",
-)
+# It sits in a collapsible section like the draft box; once a limit is set,
+# the section's title shows it, so it's visible even while collapsed.
+current_limit = st.session_state.get("char_limit_input")
+limit_title = "Optional: Character limit" + (f" · {current_limit}" if current_limit else "")
+# The fixed key keeps the section open while its title changes as you type.
+with st.expander(limit_title, key="char_limit_section"):
+    char_limit = st.number_input(
+        "Character limit",
+        min_value=50,
+        max_value=5000,
+        value=None,
+        step=10,
+        placeholder="No limit - e.g. X 280, Bluesky 300, TikTok comments 150",
+        key="char_limit_input",
+        label_visibility="collapsed",
+    )
 
 if st.button("Generate a reply", type="primary"):
     if not comment.strip() and not draft.strip():

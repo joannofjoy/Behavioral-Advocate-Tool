@@ -79,6 +79,9 @@ RETRIEVAL_CANDIDATES = 8
 # retrieval.py for why both are used).
 TAG_CANDIDATES = 4
 STRATEGIES_PER_REPLY = 3
+# With tag matching, the most strategies offered per reply (see
+# strategies.pick_top_strategies); 0 offers every match, as before.
+MAX_TAG_STRATEGIES = int(os.getenv("MAX_TAG_STRATEGIES", "4"))
 
 # Caps used to bound cost/abuse on the public demo: the longest comment or
 # draft reply the app will send to the model, and the most replies one

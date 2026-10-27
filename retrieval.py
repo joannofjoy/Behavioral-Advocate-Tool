@@ -24,13 +24,14 @@ import math
 from pathlib import Path
 
 from config import (
+    MAX_TAG_STRATEGIES,
     RETRIEVAL_CANDIDATES,
     STRATEGIES_PER_REPLY,
     STRATEGY_EMBEDDINGS_PATH,
     TAG_CANDIDATES,
 )
 from llm import embed_texts, rank_strategies
-from strategies import filter_strategies_by_tags
+from strategies import filter_strategies_by_tags, pick_top_strategies
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +151,8 @@ def select_strategies(
     """
     tag_matches, matched_tags = filter_strategies_by_tags(strategies, tags)
     if method != "ranked" or not (comment.strip() or draft.strip()):
-        return tag_matches, matched_tags
+        # Tag matching: offer only the best few matches, not all of them.
+        return pick_top_strategies(tag_matches, tags, MAX_TAG_STRATEGIES), matched_tags
 
     try:
         if strategy_vectors is None:
